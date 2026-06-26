@@ -1,0 +1,120 @@
+:root{ --accent:{{ACCENT}}; --paper:{{PAPER}}; --ink:#21201B; --soft:#6B6657;
+  --rule:#C6BDA3; --band:#EFE8D8; --bg:#E6DFCD;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace; }
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
+  -webkit-font-smoothing:antialiased; }
+
+/* fixed-viewport frame: a clean app header, then the diagram stage. Only .scroll scrolls. */
+.app{ height:100vh; display:flex; flex-direction:column; }
+
+/* app header — ONE clean bar (no inner vertical dividers; only the bottom rule, which
+   aligns with the diagram grid below). brand · project / <scenario ▾> · count */
+.appbar{ flex:0 0 auto; display:flex; align-items:center; gap:16px; height:44px; padding:0 16px;
+  background:var(--band); border-bottom:1px solid var(--rule); }
+.brand{ display:flex; align-items:center; gap:7px; font-weight:700; font-size:13px; white-space:nowrap; }
+.brand .mark{ color:var(--accent); font-size:15px; }
+.crumb{ flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:9px; }
+.crumb-proj{ color:var(--soft); font-size:12.5px; white-space:nowrap; }
+.crumb-sep{ color:var(--rule); }
+.barmeta{ flex:0 0 auto; color:var(--soft); font-size:11px; white-space:nowrap; }
+
+/* scenario switcher — the active title IS a dropdown. No ancestor clips (so the menu can
+   escape downward); only the title text itself ellipsises. */
+.switch{ position:relative; min-width:0; flex:0 1 auto; display:flex; }
+.switch-btn{ display:inline-flex; align-items:center; gap:7px; min-width:0; max-width:100%; cursor:pointer;
+  font:inherit; background:none; border:0; padding:3px 7px; margin-left:-7px; border-radius:5px; color:var(--ink); }
+.switch-btn:hover{ background:#0000000d; }
+.switch-title{ min-width:0; font-weight:700; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.switch-caret{ color:var(--soft); font-size:10px; }
+.app.solo .switch-btn{ cursor:default; }
+.app.solo .switch-btn:hover{ background:none; }
+.app.solo .switch-caret{ display:none; }
+.switch-menu{ position:absolute; top:calc(100% + 6px); left:-7px; z-index:40;
+  min-width:320px; max-width:460px; max-height:72vh; overflow:auto;
+  background:var(--paper); border:1px solid var(--rule); box-shadow:0 12px 32px -12px #0008; }
+.switch-menu[hidden]{ display:none; }
+.mitem{ display:block; width:100%; text-align:left; cursor:pointer; font:inherit; color:var(--ink);
+  background:none; border:0; border-bottom:1px solid var(--rule); border-left:3px solid transparent;
+  padding:9px 13px; }
+.mitem:last-child{ border-bottom:0; }
+.mitem:hover{ background:#0000000a; }
+.mitem.active{ border-left-color:var(--accent); background:#0000000f; }
+.mi-title{ display:block; font-size:12px; font-weight:700; }
+.mi-sub{ display:block; margin-top:2px; font-size:10.5px; color:var(--soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* stage — the one active scenario, full width + full height */
+.stage{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; background:var(--paper); }
+.card{ display:none; flex:1 1 auto; min-height:0; flex-direction:column; }
+.card.active{ display:flex; }
+
+/* pinned swimlane header above the scrolling body. The geometry is already full-bleed —
+   layout.py spreads the columns to fill FILL_W, so every scenario has the SAME natural width
+   regardless of column count. width:100% then maps that one width onto the viewport, so the
+   on-screen scale is identical across scenarios (no per-count inflation) and fills the width. */
+.head{ flex:0 0 auto; overflow:hidden; border-bottom:1px solid var(--rule); }
+.head svg{ display:block; width:100%; height:auto; }
+.scroll{ flex:1 1 auto; min-height:0; overflow:auto; }
+.diagram{ display:block; }
+.diagram svg{ display:block; width:100%; height:auto; }
+
+/* toolbar — bottom row of control cells (lens toggles, legend, export) */
+.toolbar{ flex:0 0 auto; display:flex; align-items:stretch; height:36px; overflow-x:auto;
+  border-top:1px solid var(--rule); background:var(--band); }
+.lenses{ display:flex; align-items:stretch; }
+.lens{ display:flex; align-items:center; white-space:nowrap; padding:0 13px;
+  border:0; border-right:1px solid var(--rule); background:none; font:inherit; font-size:11px;
+  cursor:pointer; color:var(--soft); }
+.lens:hover{ color:var(--ink); background:#0000000a; }
+.lens.on{ background:var(--ink); color:var(--paper); }
+.tb-right{ margin-left:auto; display:flex; align-items:stretch; }
+.legends{ display:flex; align-items:center; padding:0 14px; border-left:1px solid var(--rule); }
+.png{ display:flex; align-items:center; white-space:nowrap; padding:0 14px;
+  border:0; border-left:1px solid var(--rule); background:none; font:inherit; font-size:11px;
+  cursor:pointer; color:var(--ink); }
+.png:hover{ background:#0000000a; }
+.legend{ font-size:11px; color:var(--soft); display:flex; align-items:center; gap:7px; white-space:nowrap; }
+.legend[hidden]{ display:none!important; }
+.legend .sw{ width:11px; height:11px; border-radius:2px; display:inline-block; }
+.legend .ramp{ width:80px; height:9px; display:inline-block;
+  background:linear-gradient(90deg,#D9D2C4,#ABA493,#7C7666,#4E493D,#262320); }
+
+/* messages: entrance + interactive states */
+.msg{ animation:rise .5s ease both; animation-delay:var(--d); }
+@keyframes rise{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+.msg .arrow.sync{ stroke-dasharray:var(--len); stroke-dashoffset:var(--len);
+  animation:draw .55s ease forwards; animation-delay:var(--d); }
+@keyframes draw{ to{ stroke-dashoffset:0 } }
+.msg{ cursor:pointer; }
+.mtx{ paint-order:stroke; }
+
+/* hover-dim */
+.diagram.hov .msg:not(.hl){ opacity:.16; }
+
+/* path lens */
+.lens-path .msg{ opacity:.16; transition:opacity .2s; }
+.msg.lit{ opacity:1!important; }
+.msg.lit .arrow{ stroke:var(--accent)!important; }
+.msg.lit .ah{ fill:var(--accent)!important; stroke:var(--accent)!important; }
+.msg.lit .mtx{ fill:var(--accent); }
+
+/* metric lenses */
+.diagram.lens-cost .msg:not(.has-cost),
+.diagram.lens-lat .msg:not(.has-lat){ opacity:.14; }
+.diagram.lens-cost .msg.has-cost .arrow{ stroke:var(--c-cost)!important; stroke-width:2.2; }
+.diagram.lens-cost .msg.has-cost .ah{ fill:var(--c-cost)!important; stroke:var(--c-cost)!important; }
+.diagram.lens-lat .msg.has-lat .arrow{ stroke:var(--c-lat)!important; stroke-width:2.2; }
+.diagram.lens-lat .msg.has-lat .ah{ fill:var(--c-lat)!important; stroke:var(--c-lat)!important; }
+
+/* popover */
+.popover{ position:fixed; z-index:50; max-width:300px; background:var(--paper);
+  border:1px solid var(--ink); padding:9px 11px; font-size:11.5px;
+  box-shadow:0 8px 24px -8px #0007; }
+.popover b{ display:block; margin-bottom:4px; font-size:12px; }
+.popover .k{ color:var(--soft); }
+
+@media (prefers-reduced-motion:reduce){
+  .msg, .msg .arrow.sync{ animation:none!important; stroke-dashoffset:0!important; opacity:1; }
+}

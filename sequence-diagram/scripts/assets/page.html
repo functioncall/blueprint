@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{PROJECT}} — sequence diagrams</title>
+<style>{{CSS}}</style>
+</head><body>
+<div class="{{APPCLASS}}">
+  <header class="appbar">
+    <div class="brand"><span class="mark">#</span><span>Sequence Diagrams</span></div>
+    <div class="crumb">
+      <span class="crumb-proj">{{PROJECT}}</span>
+      <span class="crumb-sep">/</span>
+      <div class="switch">
+        <button class="switch-btn" id="switchBtn" aria-haspopup="true" aria-expanded="false">
+          <span class="switch-title" id="crumbTitle"></span>
+          <span class="switch-caret">▾</span>
+        </button>
+        <div class="switch-menu" id="switchMenu" hidden>{{MENU}}</div>
+      </div>
+    </div>
+    <div class="barmeta"><span id="barCount"></span></div>
+  </header>
+  <main class="stage">{{CARDS}}</main>
+</div>
+<div id="pop" class="popover" hidden></div>
+<script>{{JS}}</script>
+</body></html>

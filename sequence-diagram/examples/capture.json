@@ -1,0 +1,277 @@
+{
+  "id": "capture",
+  "title": "Press-and-hold capture with voice note",
+  "subtitle": "still + narration \u2192 server STT \u2192 vision enrich \u2192 live result",
+  "meta": {
+    "created": "2026-06-26",
+    "updated": "2026-06-26",
+    "status": "verified"
+  },
+  "actors": [
+    {
+      "id": "user",
+      "label": "User",
+      "zone": "user",
+      "sub_caption": "person"
+    },
+    {
+      "id": "phone",
+      "label": "Phone",
+      "kind": "internal",
+      "zone": "client",
+      "sub": [
+        {
+          "id": "ui",
+          "label": "Camera UI"
+        },
+        {
+          "id": "rec",
+          "label": "Narration"
+        },
+        {
+          "id": "up",
+          "label": "Upload"
+        }
+      ]
+    },
+    {
+      "id": "firebase",
+      "label": "Firebase",
+      "kind": "external",
+      "zone": "firebase",
+      "sub": [
+        {
+          "id": "st",
+          "label": "Storage"
+        },
+        {
+          "id": "fs",
+          "label": "Firestore"
+        }
+      ]
+    },
+    {
+      "id": "srv",
+      "label": "Server",
+      "zone": "server",
+      "sub_caption": "/capture/enrich"
+    },
+    {
+      "id": "whisper",
+      "label": "Whisper",
+      "zone": "whisper",
+      "sub_caption": "OpenAI whisper-1"
+    },
+    {
+      "id": "claude",
+      "label": "Claude",
+      "zone": "claude",
+      "sub_caption": "Anthropic Haiku"
+    }
+  ],
+  "messages": [
+    {
+      "phase": "CAPTURE"
+    },
+    {
+      "from": "user",
+      "to": "phone.ui",
+      "text": "press & hold capture",
+      "paths": [
+        "capture"
+      ]
+    },
+    {
+      "self": "phone.ui",
+      "text": "freeze still \u2192 base64 JPEG"
+    },
+    {
+      "from": "phone.ui",
+      "to": "phone.rec",
+      "text": "start narration (mic perm)",
+      "paths": [
+        "capture"
+      ]
+    },
+    {
+      "self": "phone.rec",
+      "text": "mic \u2192 AAC .m4a \u00b7 RMS ring \u00b7 60s cap"
+    },
+    {
+      "from": "user",
+      "to": "phone.rec",
+      "text": "release finger"
+    },
+    {
+      "from": "phone.rec",
+      "to": "phone.ui",
+      "text": "audio file + speechDetected",
+      "kind": "ret"
+    },
+    {
+      "from": "phone.ui",
+      "to": "user",
+      "text": "Save view (still + audiogram)",
+      "kind": "ret"
+    },
+    {
+      "phase": "SAVE"
+    },
+    {
+      "from": "user",
+      "to": "phone.ui",
+      "text": "tap SAVE",
+      "paths": [
+        "capture"
+      ]
+    },
+    {
+      "from": "phone.ui",
+      "to": "phone.up",
+      "text": "accept(still, audio)",
+      "paths": [
+        "capture"
+      ]
+    },
+    {
+      "from": "phone.up",
+      "to": "firebase.st",
+      "text": "upload still + audio blobs",
+      "paths": [
+        "capture"
+      ],
+      "src": "CaptureUploadService.swift"
+    },
+    {
+      "from": "phone.up",
+      "to": "firebase.fs",
+      "text": "write source (status: uploading)"
+    },
+    {
+      "phase": "SERVER \u00b7 ENRICH"
+    },
+    {
+      "from": "phone.up",
+      "to": "srv",
+      "text": "POST /capture/enrich + ID token",
+      "paths": [
+        "capture",
+        "enrich"
+      ],
+      "src": "EnrichClient.swift \u2192 capture.routes.ts"
+    },
+    {
+      "self": "srv",
+      "text": "quota check \u00b7 reserve cap"
+    },
+    {
+      "from": "srv",
+      "to": "firebase.st",
+      "text": "read audio blob"
+    },
+    {
+      "from": "firebase.st",
+      "to": "srv",
+      "text": "m4a bytes",
+      "kind": "ret"
+    },
+    {
+      "from": "srv",
+      "to": "whisper",
+      "text": "transcribe (whisper-1)",
+      "paths": [
+        "enrich"
+      ],
+      "metrics": {
+        "cost": 0.006,
+        "latency_ms": 1400
+      },
+      "src": "openai-stt.client.ts"
+    },
+    {
+      "from": "whisper",
+      "to": "srv",
+      "text": "transcript text",
+      "kind": "ret",
+      "metrics": {
+        "cost": 0.006,
+        "latency_ms": 1400
+      }
+    },
+    {
+      "self": "srv",
+      "text": "write narration \u00b7 delete audio"
+    },
+    {
+      "from": "srv",
+      "to": "firebase.st",
+      "text": "read still blob"
+    },
+    {
+      "from": "firebase.st",
+      "to": "srv",
+      "text": "JPEG bytes",
+      "kind": "ret"
+    },
+    {
+      "from": "srv",
+      "to": "claude",
+      "text": "vision: narration + image",
+      "paths": [
+        "enrich"
+      ],
+      "metrics": {
+        "cost": 0.011,
+        "latency_ms": 900
+      },
+      "src": "claude-vision-enricher.ts"
+    },
+    {
+      "from": "claude",
+      "to": "srv",
+      "text": "title \u00b7 blurb \u00b7 category \u00b7 OCR",
+      "kind": "ret",
+      "metrics": {
+        "cost": 0.011,
+        "latency_ms": 900
+      }
+    },
+    {
+      "from": "srv",
+      "to": "firebase.fs",
+      "text": "write enrichment (status: ready)",
+      "paths": [
+        "enrich"
+      ]
+    },
+    {
+      "note": "srv",
+      "text": "enqueue wiki compile (batched \u2192 Claude)"
+    },
+    {
+      "from": "firebase.fs",
+      "to": "phone.ui",
+      "text": "listener: source ready",
+      "kind": "ret"
+    },
+    {
+      "from": "phone.ui",
+      "to": "user",
+      "text": "show enriched result (ItemHero)",
+      "kind": "ret",
+      "paths": [
+        "capture"
+      ]
+    }
+  ],
+  "fragments": [
+    {
+      "kind": "opt",
+      "label": "voice note present",
+      "range": [
+        13,
+        17
+      ]
+    }
+  ]
+}
