@@ -47,6 +47,65 @@ python3 scripts/render_html.py examples/web-request.json index.html
 open index.html      # interactive diagram, click any message, ⤓ exports PNG
 ```
 
+## Using it
+
+**With an agent** (the normal way) — just ask, and the skill auto-loads from its description:
+
+> "Make a sequence diagram of the login flow: browser → API → Redis → Postgres."
+
+The agent authors the JSON and runs the renderer for you. You only ever describe the flow.
+
+**By hand** — write a spec and render it:
+
+```bash
+python3 sequence-diagram/scripts/render_html.py myflow.json index.html
+```
+
+### Spec schema in 30 seconds
+
+A spec is one JSON object. Render any of `examples/*.json` to see it live; here's the shape:
+
+```jsonc
+{
+  "title": "Web request — cached read",
+  "subtitle": "browser → API → cache, falling back to the DB",
+  "actors": [                                   // the columns, left → right
+    { "id": "user", "label": "User", "zone": "user",   "sub_caption": "browser" },
+    { "id": "api",  "label": "API",  "zone": "server", "sub_caption": "/v1" },
+    { "id": "db",   "label": "Postgres", "zone": "database" }
+  ],
+  "messages": [                                 // arrows, top → bottom, in order
+    { "phase": "REQUEST" },                     // a labelled section divider
+    { "from": "user", "to": "api", "text": "GET /order/42", "paths": ["read"] },
+    { "from": "api",  "to": "db",  "text": "SELECT order 42", "metrics": { "latency_ms": 35 } },
+    { "from": "db",   "to": "api", "text": "row", "kind": "ret" }   // "ret" = dashed return
+  ],
+  "fragments": [                                // optional grouping boxes
+    { "kind": "opt", "label": "cache miss", "range": [2, 3] }   // [firstMsg, lastMsg] index
+  ]
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `actors[].zone` | swimlane group → colour (`user` / `client` / `server` / `cache` / `database` …). Never set colours by hand — zones drive the palette. |
+| `messages[].kind` | `ret` = dashed return arrow; omit for a solid call. |
+| `messages[].paths` | tags a message to a **colour lens** (the bottom toolbar toggles them). |
+| `{ "phase": "NAME" }` | a labelled section band across the diagram. |
+| `fragments[]` | `opt` / `loop` / `alt` boxes spanning a `[start, end]` message range. |
+
+Full field reference: [`sequence-diagram/USAGE.md`](sequence-diagram/USAGE.md) · design legend: [`sequence-diagram/STYLE.md`](sequence-diagram/STYLE.md).
+
+## Examples
+
+Render any of these immediately (`python3 sequence-diagram/scripts/render_html.py <file> index.html`):
+
+| File | Shows |
+|------|-------|
+| [`examples/web-request.json`](sequence-diagram/examples/web-request.json) | smallest spec — phases, a return, one `opt` fragment, colour lens. Start here. |
+| [`examples/capture.json`](sequence-diagram/examples/capture.json) | a real, dense flow with metrics and multiple lenses. |
+| [`examples/master-backdrop.json`](sequence-diagram/examples/master-backdrop.json) | a **master** file — many scenarios in one, rendered to a scenario dropdown. |
+
 ## What's inside
 
 | Path | Purpose |
