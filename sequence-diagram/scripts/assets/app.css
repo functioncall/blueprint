@@ -1,13 +1,14 @@
 :root{ --accent:{{ACCENT}}; --paper:{{PAPER}}; --ink:#21201B; --soft:#6B6657;
-  --rule:#C6BDA3; --band:#EFE8D8; --bg:#E6DFCD;
+  --rule:#C6BDA3; --band:#EFE8D8; --bg:#E6DFCD; --grid:#211E1408;
   --mono:'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace; }
 *{ box-sizing:border-box; }
-html,body{ margin:0; height:100%; }
+/* the PAGE never scrolls — only the diagram body does (no scroll from header/toolbar). */
+html,body{ margin:0; height:100%; overflow:hidden; overscroll-behavior:none; }
 body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
   -webkit-font-smoothing:antialiased; }
 
 /* fixed-viewport frame: a clean app header, then the diagram stage. Only .scroll scrolls. */
-.app{ height:100vh; display:flex; flex-direction:column; }
+.app{ height:100vh; overflow:hidden; display:flex; flex-direction:column; }
 
 /* app header — ONE clean bar (no inner vertical dividers; only the bottom rule, which
    aligns with the diagram grid below). brand · project / <scenario ▾> · count */
@@ -23,11 +24,15 @@ body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
 /* scenario switcher — the active title IS a dropdown. No ancestor clips (so the menu can
    escape downward); only the title text itself ellipsises. */
 .switch{ position:relative; min-width:0; flex:0 1 auto; display:flex; }
-.switch-btn{ display:inline-flex; align-items:center; gap:7px; min-width:0; max-width:100%; cursor:pointer;
-  font:inherit; background:none; border:0; padding:3px 7px; margin-left:-7px; border-radius:5px; color:var(--ink); }
+.switch-btn{ display:inline-flex; align-items:center; gap:8px; min-width:0; max-width:100%; cursor:pointer;
+  font:inherit; background:none; border:0; padding:3px 7px; margin-left:-7px; border-radius:6px; color:var(--ink); }
 .switch-btn:hover{ background:#0000000d; }
-.switch-title{ min-width:0; font-weight:700; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.switch-caret{ color:var(--soft); font-size:10px; }
+/* with 2+ scenarios the title IS a dropdown — make it an obvious pill CTA, and never truncate it */
+.app:not(.solo) .switch-btn{ background:var(--paper); border:1px solid var(--rule);
+  padding:4px 11px; margin-left:0; box-shadow:0 1px 2px #00000012; }
+.app:not(.solo) .switch-btn:hover{ border-color:var(--soft); background:#fff8; }
+.switch-title{ min-width:0; font-weight:700; font-size:13px; white-space:nowrap; }
+.switch-caret{ color:var(--ink); font-size:12px; line-height:1; }
 .app.solo .switch-btn{ cursor:default; }
 .app.solo .switch-btn:hover{ background:none; }
 .app.solo .switch-caret{ display:none; }
@@ -56,7 +61,13 @@ body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
    on-screen scale is identical across scenarios (no per-count inflation) and fills the width. */
 .head{ flex:0 0 auto; overflow:hidden; border-bottom:1px solid var(--rule); }
 .head svg{ display:block; width:100%; height:auto; }
-.scroll{ flex:1 1 auto; min-height:0; overflow:auto; }
+/* the ONLY scroll container; the engineering-paper grid tiles the whole area so the canvas
+   feel continues into any space below a short diagram (grid is texture, never load-bearing). */
+.scroll{ flex:1 1 auto; min-height:0; overflow:auto; overscroll-behavior:contain;
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px, transparent 1px),
+                   linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:23px 23px; }
 .diagram{ display:block; }
 .diagram svg{ display:block; width:100%; height:auto; }
 
@@ -99,6 +110,7 @@ body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
 .msg.lit .arrow{ stroke:var(--accent)!important; }
 .msg.lit .ah{ fill:var(--accent)!important; stroke:var(--accent)!important; }
 .msg.lit .mtx{ fill:var(--accent); }
+.msg.lit .tmark *{ stroke:var(--accent)!important; }
 
 /* metric lenses */
 .diagram.lens-cost .msg:not(.has-cost),
@@ -108,12 +120,25 @@ body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
 .diagram.lens-lat .msg.has-lat .arrow{ stroke:var(--c-lat)!important; stroke-width:2.2; }
 .diagram.lens-lat .msg.has-lat .ah{ fill:var(--c-lat)!important; stroke:var(--c-lat)!important; }
 
-/* popover */
-.popover{ position:fixed; z-index:50; max-width:300px; background:var(--paper);
-  border:1px solid var(--ink); padding:9px 11px; font-size:11.5px;
-  box-shadow:0 8px 24px -8px #0007; }
-.popover b{ display:block; margin-bottom:4px; font-size:12px; }
-.popover .k{ color:var(--soft); }
+/* click-detail card — tiered: why headline · route sub-line · guard · prose · chips · footer */
+.popover{ position:fixed; z-index:50; max-width:340px; min-width:210px; background:var(--paper);
+  border:1px solid var(--ink); padding:11px 13px; font-size:11.5px; line-height:1.45;
+  box-shadow:0 10px 30px -8px #0008; }
+.popover[hidden]{ display:none; }
+.popover.docked{ left:auto!important; top:auto!important; right:14px; bottom:14px;
+  max-height:calc(100vh - 28px); overflow:auto; }
+.p-why{ font-weight:700; font-size:12.5px; margin-bottom:3px; }
+.p-route{ color:var(--soft); font-size:10.5px; }
+.p-guard{ color:var(--soft); font-size:10.5px; margin-top:3px; }
+.p-body{ display:flex; flex-direction:column; gap:4px; margin-top:8px; }
+.p-row{ display:flex; gap:8px; }
+.p-row .pl{ flex:0 0 44px; color:var(--soft); text-transform:uppercase;
+  font-size:9px; letter-spacing:.05em; padding-top:1px; }
+.p-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.p-chips .chip{ background:var(--band); border:1px solid var(--rule); border-radius:10px;
+  padding:1px 8px; font-size:10px; color:var(--ink); }
+.p-foot{ color:var(--soft); font-size:10px; margin-top:8px;
+  border-top:1px solid var(--rule); padding-top:6px; }
 
 @media (prefers-reduced-motion:reduce){
   .msg, .msg .arrow.sync{ animation:none!important; stroke-dashoffset:0!important; opacity:1; }

@@ -48,6 +48,57 @@ def _arrowhead(x, y, right, color, filled=True):
     return (f'<path d="M{x+dx:.1f},{y-4:.1f} L{x:.1f},{y:.1f} L{x+dx:.1f},{y+4:.1f}" '
             f'fill="none" stroke="{color}" stroke-width="1.3" class="ah"/>')
 
+def _marker(kind, cx, cy):
+    """Tiny SVG type-marker (DRAWN, never a font glyph → deterministic width, no tofu).
+    Only the two categories UML arrowheads can't express get one:
+    api = double chevron (crosses a process/network boundary); io = cylinder (a data store)."""
+    r = T.MARKER_R
+    if kind == "api":
+        return (f'<g class="tmark">'
+                f'<path d="M{cx-r:.1f},{cy-r:.1f} L{cx-1:.1f},{cy:.1f} L{cx-r:.1f},{cy+r:.1f}" '
+                f'fill="none" stroke="{T.INK_SOFT}" stroke-width="1.2"/>'
+                f'<path d="M{cx+1:.1f},{cy-r:.1f} L{cx+r+1:.1f},{cy:.1f} L{cx+1:.1f},{cy+r:.1f}" '
+                f'fill="none" stroke="{T.INK_SOFT}" stroke-width="1.2"/></g>')
+    if kind == "io":                                   # cylinder: top ellipse + body
+        rx, ry = r, r * 0.42
+        top, bot = cy - r * 0.8, cy + r * 0.7
+        return (f'<g class="tmark">'
+                f'<path d="M{cx-rx:.1f},{top:.1f} V{bot:.1f} '
+                f'A{rx:.1f},{ry:.1f} 0 0 0 {cx+rx:.1f},{bot:.1f} V{top:.1f}" '
+                f'fill="none" stroke="{T.INK_SOFT}" stroke-width="1.1"/>'
+                f'<ellipse cx="{cx:.1f}" cy="{top:.1f}" rx="{rx:.1f}" ry="{ry:.1f}" '
+                f'fill="none" stroke="{T.INK_SOFT}" stroke-width="1.1"/></g>')
+    return ""
+
+def _note_icon(cx, cy):
+    """Tiny folded-corner page glyph — a COLLAPSED note. The short tag rides beside it;
+    the full text + any src open in the click popover, so a note never crowds the canvas."""
+    w, h, f = T.NOTE_ICON_W, 9, 3
+    x, yt = cx - w / 2, cy - h / 2
+    return (f'<g class="tmark">'
+            f'<path d="M{x:.1f},{yt:.1f} h{w-f:.1f} l{f},{f} v{h-f:.1f} h{-w:.1f} Z" '
+            f'fill="none" stroke="{T.INK_SOFT}" stroke-width="1.1"/>'
+            f'<path d="M{x+w-f:.1f},{yt:.1f} v{f} h{f}" fill="none" stroke="{T.INK_SOFT}" stroke-width="1.1"/></g>')
+
+
+def _fill_bg(g):
+    """Per-card tiling background so the dotted lifelines + grid CONTINUE into any space below a
+    short diagram — the canvas never ends in a blank band. The body svg's opaque paper covers this
+    inside the diagram; it shows only in the gap. Width-relative (%), so the lifelines stay aligned."""
+    W = g["width"]
+    lines = "".join(
+        f"<line x1='{c['x']:.1f}' y1='0' x2='{c['x']:.1f}' y2='10' "
+        f"stroke='{T.LIFELINE}' stroke-width='1.4' stroke-dasharray='1.5 3.5'/>" for c in g["cols"])
+    svg = (f"<svg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none' "
+           f"viewBox='0 0 {W:.0f} 10'>{lines}</svg>")
+    enc = (svg.replace('%', '%25').replace('#', '%23').replace('<', '%3C')
+              .replace('>', '%3E').replace(' ', '%20').replace("'", '%27'))
+    return (f"background-image:url('data:image/svg+xml,{enc}'),"
+            f"linear-gradient(var(--grid) 1px,transparent 1px),"
+            f"linear-gradient(90deg,var(--grid) 1px,transparent 1px);"
+            f"background-size:100% 10px,23px 23px,23px 23px;"
+            f"background-repeat:repeat-y,repeat,repeat;")
+
 # ── per-scenario SVG ──────────────────────────────────────────────────────────
 def emit_header(g, sid):
     """The swimlane header — its own SVG so it can stay pinned while the body scrolls.
@@ -105,16 +156,16 @@ def emit_body(g, sid):
     p.append(_rect(0, life_top, T.RAIL_W, life_bot - life_top, T.RAIL))
     p.append(_ln(T.RAIL_W, life_top, T.RAIL_W, life_bot, T.GROUP_DIV, 1.0))
     for k, bd in enumerate(g["bands"]):
-        if k > 0:                                    # solid medium phase boundary, full width (incl. rail)
+        if k > 0 and bd["border"]:                   # solid medium phase boundary (skipped for an empty band)
             p.append(_ln(0, bd["y0"], groups[-1]["x1"], bd["y0"], T.PHASE_DIV, 1.3))
-        if bd["label"]:
-            cyb = (bd["y0"] + bd["y1"]) / 2
+        if bd["label"]:                              # empty band → label near its top (nice spacing, no border)
+            cyb = bd["y0"] + 26 if not bd["border"] else (bd["y0"] + bd["y1"]) / 2
             p.append(_txt(T.RAIL_W / 2, cyb, bd["label"], 9.5, T.INK_SOFT, weight="700",
                           extra=f' transform="rotate(-90 {T.RAIL_W/2:.1f} {cyb:.1f})"'))
     # combined-fragment frames (behind messages)
     for fr in g["frames"]:
         p.append(_rect(fr["x0"], fr["y0"], fr["x1"] - fr["x0"], fr["y1"] - fr["y0"],
-                       "none", T.FRAME_COL, 1.3, rx=3, cls="frame"))
+                       "none", T.FRAME_COL, 1.3, rx=3, dash="6 4", cls="frame"))
         tabw = T.text_w(fr["kind"], 10) + 14
         p.append(_rect(fr["x0"], fr["y0"], tabw, 15, T.FRAME_TAB, T.FRAME_COL, 1.2, rx=2))
         p.append(_txt(fr["x0"] + tabw/2, fr["y0"] + 8, fr["kind"], 10, T.FRAME_COL, weight="700"))
@@ -148,26 +199,38 @@ def _emit_message(i, m):
     if "latency_ms" in metrics:
         cls.append("has-lat"); style.append(f'--c-lat:{m["_clat"]}')
     data = f' data-full="{esc(m["text"])}"'
+    if m["type"] in ("note", "self"):              # content-led card (the label IS the substance)
+        data += f' data-type="{m["type"]}"'
+    # deterministic header (computed in layout): readable route, position, phase, fragment guard
+    for k in ("route", "phase", "frag"):
+        if m.get(k):
+            data += f' data-{k}="{esc(m[k])}"'
+    if m.get("step"):
+        data += f' data-step="{esc(str(m["step"]))}/{esc(str(m.get("total", m["step"])))}"'
+    # AI-prefilled detail (architecture.json) — every key optional, omitted when absent
+    det = m.get("detail") or {}
+    for k in ("why", "sends", "effects", "fails", "ordering", "auth"):
+        if det.get(k):
+            data += f' data-{k}="{esc(det[k])}"'
     if m.get("src"):
         data += f' data-src="{esc(m["src"])}"'
-    if metrics:
-        data += f' data-metrics="{esc(", ".join(f"{k}={v}" for k, v in metrics.items()))}"'
+    if metrics:                                    # one readable chip: "$0.011 · 900ms"
+        mp = []
+        if "cost" in metrics:
+            mp.append(f'${metrics["cost"]}')
+        if "latency_ms" in metrics:
+            mp.append(f'{metrics["latency_ms"]}ms')
+        mp += [f"{k}={v}" for k, v in metrics.items() if k not in ("cost", "latency_ms")]
+        data += f' data-metrics="{esc(" · ".join(mp))}"'
     head = f'<g class="{" ".join(cls)}" style="{";".join(style)}"{data}>'
     title = f'<title>{esc(m["text"])}</title>'      # native hover-reveal of the full label
 
-    if m["type"] == "note":
-        x, y = m["x"], m["y"]
-        w = max(T.text_w(s, T.FS_NOTE) for s in m["lines"]) + 18
-        h = 9 + len(m["lines"]) * T.LINE_H
-        nx = x + 16
-        out = [f'<path class="notebox" d="M{nx},{y-h/2} h{w-9} l9,9 v{h-9} h{-w} v{-h} Z" '
-               f'fill="#F6EFD7" stroke="{T.RULE}" stroke-width="1"/>',
-               f'<path d="M{nx+w-9},{y-h/2} v9 h9" fill="none" stroke="{T.RULE}" stroke-width="1"/>']
-        ty = y - (len(m["lines"]) - 1) * T.LINE_H / 2
-        for ln in m["lines"]:
-            out.append(_txt(nx + w / 2 - 4, ty, ln, T.FS_NOTE, T.INK_SOFT))
-            ty += T.LINE_H
-        return head + title + "".join(out) + "</g>"
+    if m["type"] == "note":          # collapsed: a folded-page icon + a short tag; full text on click
+        y, gx = m["y"], m["gx"]
+        icon = _note_icon(gx + T.NOTE_ICON_W / 2, y)
+        txt = _txt(gx + T.NOTE_ICON_W + 4, y, m["label"], T.FS_NOTE, T.INK_SOFT,
+                   anchor="start", cls="mtx mcap")
+        return head + title + icon + txt + "</g>"
 
     if m["type"] == "self":          # loop leaves + returns to the bar EDGE; text on the roomy side
         x, y = m["x"], m["y"]
@@ -179,28 +242,32 @@ def _emit_message(i, m):
             ex = x - T.BAR_HALF
             loop = f'<path class="arrow self" d="M{ex},{y} h-20 v14 h20" fill="none" stroke="{T.INK}" stroke-width="1.4"/>'
             ah, anchor = _arrowhead(ex, y + 14, True, T.INK, filled=True), "end"
-        ty, txt = y + 7 - (len(m["lines"]) - 1) * T.LINE_H / 2, ""
-        for ln in m["lines"]:
-            txt += _txt(m["lx"], ty, ln, T.FS_MSG, T.INK, anchor=anchor, cls="mtx")
-            ty += T.LINE_H
+        cap = m.get("caption", "")
+        py = y + 2 if cap else y + 7                   # one-line primary + optional soft caption
+        txt = _txt(m["lx"], py, m["lines"][0], T.FS_MSG, T.INK, anchor=anchor, cls="mtx")
+        if cap:
+            txt += _txt(m["lx"], py + 12, cap, T.FS_CAP, T.INK_SOFT, anchor=anchor, cls="mtx mcap")
         return head + title + loop + ah + txt + "</g>"
 
-    # normal message — line spans bar-edge to bar-edge (set in layout); label rides ABOVE
-    # (1 line) or STRADDLES the line (2 lines, line through the middle). Centre is clamped on-screen.
+    # normal message — line spans bar-edge to bar-edge (set in layout). UML mechanics:
+    # filled head = sync call · dashed + open head = return · solid + open head = async.
+    # Label = a bold primary line ABOVE + an optional soft caption BELOW; centre clamped on-screen.
+    # A drawn type-marker (api/io) sits just left of the primary.
     x0, x1, y = m["sx"], m["tx"], m["y"]
     ret = m["kind"] == "ret"
+    openhead = ret or m["kind"] == "async"
     dash = ' stroke-dasharray="5 4"' if ret else ""
     line = (f'<line class="arrow {"ret" if ret else "sync"}" x1="{x0:.1f}" y1="{y}" '
             f'x2="{x1:.1f}" y2="{y}" stroke="{T.INK}" stroke-width="1.4"{dash} '
             f'style="--len:{abs(x1 - x0):.1f}"/>')
-    ah = _arrowhead(x1, y, m["right"], T.INK, filled=not ret)
-    lines, lcx = m["lines"], m["lcx"]
-    if len(lines) == 1:
-        txt = _txt(lcx, y - 8, lines[0], T.FS_MSG, T.INK, cls="mtx")
-    else:
-        txt = (_txt(lcx, y - 8, lines[0], T.FS_MSG, T.INK, cls="mtx")
-               + _txt(lcx, y + 8, lines[1], T.FS_MSG, T.INK, cls="mtx"))
-    return head + title + line + ah + txt + "</g>"
+    ah = _arrowhead(x1, y, m["right"], T.INK, filled=not openhead)
+    lcx = m["lcx"]
+    txt = _txt(lcx, y - 8, m["lines"][0], T.FS_MSG, T.INK, cls="mtx")
+    cap = m.get("caption", "")
+    if cap:
+        txt += _txt(lcx, y + 8, cap, T.FS_CAP, T.INK_SOFT, cls="mtx mcap")
+    mk = _marker(m["marker"], lcx - m["pw"] / 2 - T.MARKER_PAD, y - 8) if m.get("marker") else ""
+    return head + title + line + ah + mk + txt + "</g>"
 
 
 def _slug(s):
@@ -240,7 +307,7 @@ def emit_card(scn, n, active=False):
     sid = _slug(scn.get("id", f"s{n}"))
     lenses = _prep_lenses(scn)
     g = L.compute(scn)
-    header, body = emit_header(g, sid), emit_body(g, sid)
+    header, body, fill = emit_header(g, sid), emit_body(g, sid), _fill_bg(g)
 
     # lens toolbar (only lenses that have data)
     btns = ['<button class="lens on" data-lens="none">Neutral</button>']
@@ -252,8 +319,12 @@ def emit_card(scn, n, active=False):
     if lenses["latency_ms"]:
         btns.append('<button class="lens" data-lens="lat">⏱ latency</button>')
 
-    legends = ['<div class="legend lg-none">solid → call &nbsp; dashed → return &nbsp; '
-               '▭ active &nbsp; click a row for detail</div>']
+    mk_api = f'<svg width="14" height="11" style="vertical-align:-2px">{_marker("api", 7, 5.5)}</svg>'
+    mk_io = f'<svg width="14" height="11" style="vertical-align:-2px">{_marker("io", 7, 5.5)}</svg>'
+    legends = [f'<div class="legend lg-none">solid&nbsp;→&nbsp;call &nbsp;·&nbsp; '
+               f'dashed&nbsp;→&nbsp;return &nbsp;·&nbsp; open&nbsp;tip&nbsp;→&nbsp;async &nbsp;·&nbsp; '
+               f'{mk_api}&nbsp;other&nbsp;service &nbsp;·&nbsp; {mk_io}&nbsp;data&nbsp;store &nbsp;·&nbsp; '
+               f'▭&nbsp;active &nbsp;·&nbsp; click&nbsp;a&nbsp;row&nbsp;for&nbsp;detail</div>']
     for pa in lenses["paths"]:
         legends.append(f'<div class="legend lg-path-{_slug(pa)}" hidden>'
                        f'<span class="sw" style="background:{T.ACCENT}"></span> path “{esc(pa)}” lit; rest dimmed</div>')
@@ -269,7 +340,7 @@ def emit_card(scn, n, active=False):
     upd = (scn.get("meta", {}) or {}).get("updated", "")
     return f'''<section class="card{" active" if active else ""}" data-card="{sid}" data-title="{esc(scn.get("title",""))}" data-sub="{esc(scn.get("subtitle",""))}" data-updated="{esc(upd)}">
   <div class="head">{header}</div>
-  <div class="scroll"><div class="diagram lens-none">{body}</div></div>
+  <div class="scroll" style="{fill}"><div class="diagram lens-none">{body}</div></div>
   <div class="toolbar">
     <div class="lenses">{"".join(btns)}</div>
     <div class="tb-right"><div class="legends">{"".join(legends)}</div><button class="png">⤓ PNG</button></div>

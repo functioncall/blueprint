@@ -18,8 +18,9 @@ ZEBRA       = "#7B73560F" # alternate-lane neutral band (no colour, just tone)
 GROUP_DIV   = "#B4AA8C"   # vertical divider between actor sections (stronger)
 PHASE_DIV   = "#9E9173"   # horizontal phase boundary — solid, medium weight (bolder than the lifelines)
 RAIL        = "#E6DECA"   # left phase-index rail fill (reads as a column)
-FRAME_COL   = "#3E6356"   # combined-fragment (opt/alt/loop) border — muted teal, clearly visible
-FRAME_TAB   = "#D9E2DB"   # fragment label-tab fill (light teal)
+FRAME_COL   = "#8A7E5C"   # combined-fragment border — neutral khaki-grey, DASHED: a container, never
+                          # confused with a message line or a (possibly teal) actor's identity colour
+FRAME_TAB   = "#E2D9C0"   # fragment label-tab fill (light neutral)
 # activation bars + headers pull from the generated OKLCH palette below (positional, adaptive)
 
 ACCENT      = "#B23A2E"   # THE single reserved accent (path-highlight). Oxblood red.
@@ -30,29 +31,38 @@ GRID        = 23          # grid pitch (px) — single faint level
 MONO = "'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace"
 FS_BAND    = 12          # actor (tier-1) header label
 FS_SUBBAND = 10.5        # sub-service (tier-2) header label
-FS_MSG     = 9.5         # message label (above / straddling the line)
+FS_MSG     = 9.5         # message PRIMARY label (the one short line that rides the arrow)
+FS_CAP     = 8.5         # message SECONDARY label (the demoted soft caption under the primary)
 FS_NOTE    = 9.5
 CH = 0.605               # monospace advance width as a fraction of font-size
+
+# ── type markers (drawn as SVG, NOT font glyphs — so width math stays deterministic) ──
+# Only the two categories UML's arrowheads can't express get a marker; fn = no marker.
+MARKER_R   = 3.4         # marker half-size (px)
+MARKER_PAD = 8           # gap from the marker centre to the primary label's left edge
+NOTE_ICON_W = 8          # collapsed-note folded-page glyph width (full text + src open on click)
+PRIMARY_MAXCH = 30       # soft cap on the primary label (validator WARNS past this)
+CAP_MAXCH     = 36       # soft cap on the caption
 
 # ── layout geometry (css px) ──────────────────────────────────────────────────
 COLW       = 146         # MIN lifeline column width; widens to fill FILL_W so the diagram is full-bleed
 FILL_W     = 1380        # target full-bleed canvas width — columns SPREAD to fill this, so every
                          # scenario is full-width at ONE consistent scale (fonts never change with
                          # column count; sparse diagrams stop leaving blank space on the right)
-FILL_H     = 760         # target canvas height — lifelines/grid/rail extend to fill when a scenario
-                         # is short, so there's no blank band under a sparse diagram
+FILL_H     = 860         # target canvas height — lifelines/grid/rail extend to fill when a scenario
+                         # is short (CSS tiles the grid past this for taller viewports, so no blank band)
 RAIL_W     = 30          # left phase-index rail width
 TIER1_H    = 23          # actor band height
 TIER2_H    = 19          # sub-service band height
 HEAD_TOP   = 0           # header band fills the svg flush (no padding); CSS borders divide sections
-ROW        = 34          # vertical pitch between messages (tight)
+ROW        = 38          # vertical pitch between messages (room for an optional 2nd caption line)
 ROW_TOP    = 10          # gap from lifeline top to first message
 PHASE_GAP  = 26          # extra air inserted at a {phase} marker
 PHASE_LEAD = 32          # healthy top padding BELOW a phase line, before its first message
 BAR_HALF   = 3           # activation-bar half-width (thin → reads as a crisp solid service tick)
 LINE_H     = 12.5        # wrapped-line height
 FRAME_PAD  = 13          # combined-fragment frame side padding
-FRAME_TOP  = 17          # extra air before a fragment's first row (room for its label tab)
+FRAME_TOP  = 20          # extra air before a fragment's first row (room for its label tab + a caption above)
 
 # ── generated categorical palette (OKLCH — perceptual, adaptive) ───────────────
 # Identity colour is POSITIONAL, not semantic: each top-level actor gets an even-spaced

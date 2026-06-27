@@ -86,14 +86,15 @@ every time, and adding scenarios later never touches the ones already drawn.
       "messages": [
         { "phase": "CAPTURE" },
         { "from": "user", "to": "phone.ui", "text": "press & hold", "paths": ["capture"] },
-        { "self": "phone.ui", "text": "freeze still" },
+        { "self": "phone.ui", "text": "freeze still", "caption": "→ base64 JPEG" },
         { "phase": "ENRICH" },
-        { "from": "phone.up", "to": "srv", "text": "POST /enrich", "paths": ["enrich"],
-          "src": "EnrichClient.swift → routes.ts" },
-        { "from": "srv", "to": "claude", "text": "vision", "paths": ["enrich"],
-          "metrics": { "cost": 0.011, "latency_ms": 900 } },
-        { "from": "claude", "to": "srv", "text": "title · blurb", "kind": "ret",
-          "metrics": { "cost": 0.011, "latency_ms": 900 } },
+        { "from": "phone.up", "to": "srv", "text": "POST /enrich", "caption": "+ ID token",
+          "via": "api", "paths": ["enrich"], "src": "EnrichClient.swift → routes.ts" },
+        { "from": "srv", "to": "claude", "text": "vision", "caption": "narration + image",
+          "via": "api", "paths": ["enrich"], "metrics": { "cost": 0.011, "latency_ms": 900 } },
+        { "from": "claude", "to": "srv", "text": "enrichment", "caption": "title, blurb, OCR",
+          "kind": "ret", "metrics": { "cost": 0.011, "latency_ms": 900 } },
+        { "from": "srv", "to": "phone.ui", "text": "push ready", "kind": "async", "via": "api" },
         { "note": "srv", "text": "enqueue wiki compile" }
       ],
       "fragments": [ { "kind": "opt", "label": "voice note present", "range": [1, 2] } ]
@@ -111,23 +112,59 @@ every time, and adding scenarios later never touches the ones already drawn.
   `kind:"internal"` also sits in the server tier. Colour is positional OKLCH — no per-zone hex.
 - **messages** (ordered):
   - `{phase:"LABEL"}` — a section divider (vertical label in the left rail). No text/refs.
-  - `{from,to,text}` — solid request; add `"kind":"ret"` for a dashed return. Address a
-    sub-service as `actorId.subId` (e.g. `phone.ui`).
-  - `{self,text}` — self-loop. `{note,text}` — folded-corner aside.
+  - `{from,to,text}` — solid request (filled head = sync call). `"kind":"ret"` = dashed + open head
+    (return); `"kind":"async"` = solid + open head (fire-and-forget / event). This is the **UML
+    arrowhead vocabulary** — the mechanics channel. Address a sub-service as `actorId.subId`.
+  - `"via":"api"|"io"` — the interaction **category** → a small DRAWN marker (no marker = a plain
+    in-process call). `api` = crosses a process/network/trust boundary (HTTP/RPC/IPC/3rd-party SDK);
+    `io` = a data-store read/write (DB/cache/file/blob). Defined by the **boundary crossed**, not the
+    tech — so it means the same on web, mobile, embedded, a compiler, an ETL job. Composes with
+    `kind` (a store-read return = `kind:"ret"` + `via:"io"`).
+  - `"caption":"…"` — an optional **soft secondary line UNDER the primary**; put params / state /
+    thresholds / model names here so the primary stays one short clause.
+  - `{self,text}` — self-loop (= on-device process).
+  - `{note,text}` — a **collapsed note**: a folded-page icon + a SHORT tag (`text`, ≤ ~24 chars);
+    put the long explanation / file refs in `src` (revealed on click). For a genuine caveat the
+    arrows can't show (a scope boundary, "CPU-only path") — use sparingly, never as a scratchpad.
   - `"metrics":{"cost":0.011,"latency_ms":900}` — enables the `$ cost` / `⏱ latency` lenses
     (a perceptual graphite ramp; absent data → that lens isn't offered).
   - `"paths":["enrich"]` — tags the message to a named flow → a `↪ enrich` highlight lens.
-  - `"src":"File.swift → route.ts"` — shown in the click-a-message detail popover.
+  - `"src":"File.swift → route.ts"` — the caller→callee files; shown in the click-detail footer.
+  - `"detail":{…}` — the **AI-prefilled body of the click-detail card** (everything the arrow can't
+    show). All six keys optional; emit only for **load-bearing** messages (api/io/metric'd/path-tagged
+    or otherwise non-obvious) and **omit any key you're unsure of** — blank is correct, never guess.
+    Keep each a tight clause (≤ ~140 chars). The card already shows the readable route, `step N/M`,
+    phase and any fragment guard from the spec — so **`detail` must NOT restate the label, the
+    participants, or the on-arrow caption.** Keys:
+    - `why` — the card's **headline**: why this call exists, in plain language (NOT a paraphrase of
+      the label). E.g. label `DELETE /account` → why `Erase the user; token-auth'd; cascade-safe.`
+    - `effects` — what it mutates/emits as a result ("deletes 3 Firestore subcollections, then auth").
+    - `fails` — behaviour on error (retry, fallback, throw, partial-state safety) — the 3am question.
+    - `sends` · `auth` · `ordering` — short **chips**, not sentences: the payload/credential token
+      (`Bearer ID token`), the identity that crosses (`Firebase ID token, verified first`), and any
+      sequence constraint (`runs LAST`). Put the ordering/auth fact in its chip — don't also repeat
+      it in `fails`/`effects` prose.
 - **`fragments`** (per scenario): `[{kind,label,range:[a,b],segments?:[{guard}]}]`. `kind` ∈
   opt|alt|loop|par|break|critical|ref. **`range` indexes the NON-phase message order** (a,b
-  inclusive). `segments` adds divider guards (for alt/par).
+  inclusive). `segments` adds divider guards (for alt/par). **A box must wrap ≥2 messages** — for a
+  single message, fold the condition into that message's `caption` instead (a 1-message `loop`, which
+  asserts repetition, is the only exception). The validator warns on a degenerate box.
 - **`meta`** (per scenario, optional): `{created,updated,status}` — informational.
 
-## Conventions
-- Short labels (≤ ~6 words) — the renderer wraps to ≤2 lines.
-- Pair every request that returns with a `kind:"ret"`. Put `metrics` on the paid/heavy call
-  (and its return) so a lens can rank them — never invent a "cost" boolean; it's the metric.
-- Use `phase` markers to chunk a long flow into sections; use `paths` for flows worth tracing.
+## Conventions — label grammar (keeps every diagram readable on any codebase)
+- **One short clause per primary `text`** (≤ ~30 chars / ~4 words → renders as ONE line, no wrap).
+  Detail (params, state, thresholds, model names) goes in `caption`. **Never** put `·`/`—` or math
+  in a primary — the validator rejects `·`/`—` there and warns past the length cap.
+- **Phrase the primary by category** so types read at a glance:
+  - in-process call → `name()` or `verb noun` (`render cells`)
+  - `via:"api"` → `VERB target` (`POST /enrich`, `Auth.Login`)
+  - `via:"io"` → `read`/`write`/`query X` (`read blob`)
+  - async/event → `emit`/`on`/`enqueue X`
+  - return (`kind:"ret"`) → the value as a noun (`JPEG bytes`, `200 OK`)
+  - self/process → an imperative phrase (`build quadtree`)
+- Tag category with `via`, direction with `kind`; they compose. Pair every request that returns
+  with `kind:"ret"`. Put `metrics` on the paid/heavy call (and its return) — it's the metric, not a
+  boolean. Use `phase` to chunk a long flow; `paths` for flows worth tracing.
 - Aim for ≤ ~7 lifelines and ≤ ~20 messages per scenario; split if larger.
 - Only diagram **real** behaviour — read the code, don't invent.
 

@@ -112,17 +112,58 @@
     });
   });
 
-  // ── click-a-message detail popover ─────────────────────────────────────────
+  // ── click-a-message detail card ────────────────────────────────────────────
+  // Tiers: WHY headline · readable route/step/phase sub-line · guard · prose body
+  // (what-changes / on-failure) · fact chips (sends/auth/ordering/cost) · src+age footer.
+  // Header + footer are deterministic; the body shows only the AI `detail` keys present.
+  function row(label, val){
+    return '<div class="p-row"><span class="pl">' + esc(label) + '</span><span>' + esc(val) + '</span></div>';
+  }
+  function chip(val){ return '<span class="chip">' + esc(val) + '</span>'; }
+  function buildCard(g){
+    var d = g.dataset, h = '';
+    // headline = the WHY; with no detail, lead with the readable route (a normal arrow) or the
+    // label itself (self/note, where the label is the substance) — never repeat a normal arrow's label.
+    var contentLed = (d.type === 'note' || d.type === 'self');
+    var head = d.why || (contentLed ? d.full : d.route) || d.full || '(message)';
+    h += '<div class="p-why">' + esc(head) + '</div>';
+    var sub = [];
+    if(d.route && d.route !== head) sub.push(d.route);
+    if(d.step)  sub.push('step ' + d.step);
+    if(d.phase) sub.push(d.phase);
+    if(sub.length) h += '<div class="p-route">' + esc(sub.join('  ·  ')) + '</div>';
+    if(d.frag) h += '<div class="p-guard">⋔ ' + esc(d.frag) + '</div>';
+    var body = '';
+    if(d.effects) body += row('Changes', d.effects);
+    if(d.fails)   body += row('On fail', d.fails);
+    if(body) h += '<div class="p-body">' + body + '</div>';
+    var chips = '';
+    if(d.sends)    chips += chip(d.sends);
+    if(d.auth)     chips += chip(d.auth);
+    if(d.ordering) chips += chip(d.ordering);
+    if(d.metrics)  chips += chip(d.metrics);
+    if(chips) h += '<div class="p-chips">' + chips + '</div>';
+    var foot = [];
+    if(d.src) foot.push(d.src);
+    var card = g.closest('.card'), age = card && card.dataset.updated;
+    if(age) foot.push(age);                                   // research age → staleness + AI-derived signal
+    if(foot.length) h += '<div class="p-foot">' + esc(foot.join('  ·  ')) + '</div>';
+    return h;
+  }
   document.addEventListener('click', function(e){
+    if(pop.contains(e.target)) return;                        // clicks INSIDE the card never dismiss it
     var g = e.target.closest('.msg');
     if(!g){ pop.hidden = true; return; }
-    var full = g.dataset.full;
-    var h = '<b>' + esc(full || '(message)') + '</b>';
-    if(g.dataset.metrics) h += '<div class="k">' + esc(g.dataset.metrics) + '</div>';
-    if(g.dataset.src) h += '<div class="k">' + esc(g.dataset.src) + '</div>';
-    pop.innerHTML = h; pop.hidden = false;
-    var x = Math.min(e.clientX + 12, innerWidth - pop.offsetWidth - 8);
-    var y = Math.min(e.clientY + 12, innerHeight - pop.offsetHeight - 8);
+    pop.classList.remove('docked');
+    pop.innerHTML = buildCard(g);
+    pop.hidden = false;
+    pop.style.left = '0px'; pop.style.top = '0px';            // measure at a known origin
+    if(pop.offsetHeight > innerHeight - 24){                  // too tall to float → dock + scroll
+      pop.classList.add('docked'); return;
+    }
+    var x = Math.max(8, Math.min(e.clientX + 12, innerWidth - pop.offsetWidth - 8));
+    var y = Math.max(8, Math.min(e.clientY + 12, innerHeight - pop.offsetHeight - 8));
     pop.style.left = x + 'px'; pop.style.top = y + 'px';
   });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') pop.hidden = true; });
 })();

@@ -116,6 +116,10 @@ def compute(scenario):
             return name_to_i[ref]
         raise SystemExit(f"unknown actor '{ref}' — known: {sorted(set(name_to_i))}")
 
+    def label_of(ref):                  # readable participant: "Server / API" (sub) or "Claude" (bare)
+        c = cols[idx(ref)]
+        return f'{c["parent"]} / {c["label"]}' if c.get("parent") else c["label"]
+
     # ── x positions: cells SPREAD to fill the canvas (colw widens to FILL_W) so the diagram
     #    is always full-bleed WITHOUT scaling fonts; contiguous groups, lifeline = cell centre ──
     colw = max(T.COLW, (T.FILL_W - T.RAIL_W) / max(1, len(cols)))
@@ -160,46 +164,88 @@ def compute(scenario):
 
     # ── message rows + phase gaps (cursor-based; phases add air, not a row) ────
     frag_starts = {fr["range"][0] for fr in scenario.get("fragments", [])}
-    out_msgs, phases, y, ri = [], [], life_top + T.ROW_TOP, 0
+    n_total = sum(1 for mm in msgs if "phase" not in mm)      # for the click-box "step N/M"
+    frag_at = {}                                              # non-phase index → wrapping fragment
+    for fr in scenario.get("fragments", []):
+        rng = fr.get("range")
+        if isinstance(rng, list) and len(rng) == 2:
+            for j in range(rng[0], rng[1] + 1):
+                frag_at.setdefault(j, fr)
+    out_msgs, phases, y, ri, cur_phase = [], [], life_top + T.ROW_TOP, 0, ""
     for m in msgs:
         if "phase" in m:
+            cur_phase = m.get("phase", "")
             y += T.PHASE_GAP
             phases.append({"y": y - T.PHASE_LEAD, "label": m.get("phase", "")})   # line sits a healthy gap above the next row
             continue
         if ri in frag_starts:                # room for the fragment's label tab
             y += T.FRAME_TOP
         ri += 1
+        fr = frag_at.get(ri - 1)             # the click-box reveals an opt/alt/loop guard once you click
+        frag = (f'{fr["kind"]} · {fr["label"]}' if fr and fr.get("label") else fr["kind"]) if fr else ""
         common = {"y": y, "kind": m.get("kind", ""), "paths": m.get("paths", []),
                   "metrics": m.get("metrics", {}), "src": m.get("src", ""),
-                  "_ccost": m.get("_ccost"), "_clat": m.get("_clat")}
-        if "note" in m:
-            lines, _ = _wrap(m["text"], 176, T.FS_NOTE, 3)
-            out_msgs.append({**common, "type": "note", "x": cx(idx(m["note"])),
-                             "text": m["text"], "lines": lines})
+                  "_ccost": m.get("_ccost"), "_clat": m.get("_clat"),
+                  "via": m.get("via", ""), "detail": m.get("detail") or {},
+                  "phase": cur_phase, "step": ri, "total": n_total, "frag": frag}
+        if "from" in m and "to" in m and idx(m["from"]) == idx(m["to"]):   # a from==to msg IS a self-call
+            m = {**{k: v for k, v in m.items() if k not in ("from", "to")}, "self": m["from"]}
+        if "note" in m:                  # collapsed to an icon + short tag (full text + src on click)
+            xx = cx(idx(m["note"]))
+            lab = _wrap(m["text"], 150, T.FS_NOTE, 1)[0][0]
+            total = T.NOTE_ICON_W + 4 + T.text_w(lab, T.FS_NOTE)
+            gx = xx + 14                                       # default: just right of the lifeline
+            if gx + total > width - 6:                         # would clip → flip to the left
+                gx = xx - 14 - total
+            gx = max(T.RAIL_W + 6, min(gx, width - 6 - total)) # never under the rail / off-canvas
+            out_msgs.append({**common, "type": "note", "x": xx, "gx": gx,
+                             "label": lab, "text": m["text"], "lines": [lab],
+                             "route": f"{label_of(m['note'])} · note",
+                             "x_min": gx, "x_max": gx + total})
         elif "self" in m:                  # text on whichever side has room (avoids sprawl)
             sci = idx(m["self"]); xx = cx(sci)
             loop_r = xx + T.BAR_HALF + 20
             right_room = width - 6 - (loop_r + 8)
             if right_room >= 92:
-                lines, _ = _wrap(m["text"], min(right_room, 150), T.FS_MSG, 3)
-                side, lx = "r", loop_r + 8
-            else:
-                left_room = (xx - T.BAR_HALF) - (T.RAIL_W + 6)
-                lines, _ = _wrap(m["text"], max(80, min(left_room, 150)), T.FS_MSG, 3)
-                side, lx = "l", xx - T.BAR_HALF - 8
+                avail = min(right_room, 150); side, lx = "r", loop_r + 8
+            else:                                      # left: label clears the loop (reaches -20), not over it
+                avail = max(80, min((xx - T.BAR_HALF) - (T.RAIL_W + 6), 150))
+                side, lx = "l", xx - T.BAR_HALF - 28
+            lines, _ = _wrap(m["text"], avail, T.FS_MSG, 1)        # primary = ONE line
+            cap = m.get("caption", "")
+            capline = _wrap(cap, avail, T.FS_CAP, 1)[0][0] if cap else ""
+            lw = max(T.text_w(lines[0], T.FS_MSG), T.text_w(capline, T.FS_CAP) if capline else 0)
+            x_min, x_max = ((xx - T.BAR_HALF, lx + lw) if side == "r"
+                            else (lx - lw, xx + T.BAR_HALF))   # true visual extent (loop + label)
             out_msgs.append({**common, "type": "self", "x": xx, "ci": sci, "text": m["text"],
-                             "lines": lines, "side": side, "lx": lx})
+                             "lines": lines, "caption": capline, "side": side, "lx": lx,
+                             "route": f"{label_of(m['self'])} · self",
+                             "x_min": x_min, "x_max": x_max})
         else:
             si, di = idx(m["from"]), idx(m["to"])
             sxx, txx = cx(si), cx(di)
-            lines, _ = _wrap(m["text"], max(150, abs(txx - sxx) - 6), T.FS_MSG, 2)
-            w = max(T.text_w(ln, T.FS_MSG) for ln in lines)
+            avail = max(150, abs(txx - sxx) - 6)
+            lines, _ = _wrap(m["text"], avail, T.FS_MSG, 1)        # primary = ONE line, ellipsised to fit
+            cap = m.get("caption", "")
+            capline = _wrap(cap, avail, T.FS_CAP, 1)[0][0] if cap else ""
+            pw = T.text_w(lines[0], T.FS_MSG)
+            w = max(pw, T.text_w(capline, T.FS_CAP) if capline else 0)
             lcx = min(max((sxx + txx) / 2, T.RAIL_W + 4 + w / 2), width - 6 - w / 2)  # clamp on-screen
+            via = m.get("via", "")
+            mk = lcx - pw / 2 - T.MARKER_PAD - T.MARKER_R if via in ("api", "io") else lcx
+            x_min = min(sxx, txx, lcx - w / 2, mk) - T.BAR_HALF   # true visual extent (line + label + marker)
+            x_max = max(sxx, txx, lcx + w / 2) + T.BAR_HALF
             out_msgs.append({**common, "type": "msg", "si": si, "di": di,
                              "from_x": sxx, "to_x": txx, "mid_x": (sxx + txx) / 2, "lcx": lcx,
-                             "right": txx >= sxx, "text": m["text"], "lines": lines})
+                             "right": txx >= sxx, "text": m["text"], "lines": lines,
+                             "caption": capline, "pw": pw,
+                             "route": f"{label_of(m['from'])} → {label_of(m['to'])}",
+                             "marker": via if via in ("api", "io") else "",
+                             "x_min": x_min, "x_max": x_max})
         y += T.ROW
-    life_bot = max((out_msgs[-1]["y"] if out_msgs else life_top) + 20, T.FILL_H)
+    last_y = out_msgs[-1]["y"] if out_msgs else life_top
+    trailing_empty = bool(phases) and phases[-1]["y"] > last_y      # a phase marker with no messages after it
+    life_bot = max(last_y + 48, (phases[-1]["y"] + 60) if trailing_empty else 0, T.FILL_H)
     height = life_bot                        # extend to FILL_H so a short scenario fills the canvas
 
     # ── activation bars (req…ret stack; unreturned -> short bump) ─────────────
@@ -233,15 +279,16 @@ def compute(scenario):
     for fr in scenario.get("fragments", []):
         a, b = fr["range"]
         rowset = out_msgs[a:b + 1]
-        xsv = []
-        for om in rowset:
-            xsv += ([om["from_x"], om["to_x"]] if om["type"] == "msg" else [om["x"]])
+        # bound EVERY visual element of the rows (line, label, marker, self-loop, bar), not just
+        # lifeline centres — so nothing spills outside the box; then clamp the box on-canvas.
+        x0 = min((om["x_min"] for om in rowset), default=0) - T.FRAME_PAD
+        x1 = max((om["x_max"] for om in rowset), default=width) + T.FRAME_PAD
         y1 = rowset[-1]["y"] + (24 if rowset[-1]["type"] == "self" else 13)  # clear self-call loop/bar
         frames.append({
             "kind": fr["kind"], "label": fr.get("label", ""),
             "guard0": (fr.get("segments") or [{}])[0].get("guard", ""),
-            "x0": (min(xsv) if xsv else 0) - T.FRAME_PAD,
-            "x1": (max(xsv) if xsv else width) + T.FRAME_PAD,
+            "x0": max(T.RAIL_W + 2, x0),
+            "x1": min(width - 2, x1),
             "y0": rowset[0]["y"] - 32, "y1": y1,
             # a segment divider needs its own start index; the documented schema lets a
             # segment be just {guard}, so draw a divider only when a range is supplied.
@@ -251,10 +298,13 @@ def compute(scenario):
         })
 
     # phase bands for the left index rail (first spans from the top; last to the bottom)
-    bands = [{"y0": life_top if k == 0 else ph["y"],
-              "y1": phases[k + 1]["y"] if k + 1 < len(phases) else life_bot,
-              "label": ph["label"]}
-             for k, ph in enumerate(phases)]
+    bands = []
+    for k, ph in enumerate(phases):
+        y0 = life_top if k == 0 else ph["y"]
+        y1 = phases[k + 1]["y"] if k + 1 < len(phases) else life_bot
+        # a band with no messages (e.g. a trailing scope marker) draws NO divider — just spacing
+        bands.append({"y0": y0, "y1": y1, "label": ph["label"],
+                      "border": any(y0 <= om["y"] < y1 for om in out_msgs)})
 
     return {"width": round(width), "height": round(height),
             "head_region": head_region, "head_top": head_top, "head_h": head_h,

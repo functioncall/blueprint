@@ -1,7 +1,7 @@
 {
   "title": "Web request — cached read",
   "subtitle": "browser → API → cache, falling back to the DB",
-  "meta": { "created": "2026-06-26", "updated": "2026-06-26" },
+  "meta": { "created": "2026-06-26", "updated": "2026-06-27" },
   "actors": [
     { "id": "user", "label": "User", "zone": "user", "sub_caption": "browser" },
     { "id": "web", "label": "Web", "zone": "client", "sub_caption": "Next.js" },
@@ -12,15 +12,15 @@
   "messages": [
     { "phase": "REQUEST" },
     { "from": "user", "to": "web", "text": "click Buy", "paths": ["read"] },
-    { "from": "web", "to": "api", "text": "GET /order/42", "paths": ["read"],
+    { "from": "web", "to": "api", "text": "GET /order/42", "via": "api", "paths": ["read"],
       "src": "app/order/page.tsx → routes.ts" },
-    { "from": "api", "to": "cache", "text": "GET order:42" },
+    { "from": "api", "to": "cache", "text": "read order", "caption": "key order:42", "via": "io" },
     { "from": "cache", "to": "api", "text": "miss", "kind": "ret" },
     { "phase": "FALLBACK" },
-    { "from": "api", "to": "db", "text": "SELECT order 42", "metrics": { "latency_ms": 35 } },
+    { "from": "api", "to": "db", "text": "query order", "caption": "id 42", "via": "io", "metrics": { "latency_ms": 35 } },
     { "from": "db", "to": "api", "text": "row", "kind": "ret", "metrics": { "latency_ms": 35 } },
-    { "from": "api", "to": "cache", "text": "SET order:42 ttl=60" },
-    { "from": "api", "to": "web", "text": "200 order json", "kind": "ret", "paths": ["read"] },
+    { "from": "api", "to": "cache", "text": "cache order", "caption": "ttl 60s", "via": "io" },
+    { "from": "api", "to": "web", "text": "200 OK", "caption": "order json", "kind": "ret", "paths": ["read"] },
     { "from": "web", "to": "user", "text": "render order", "kind": "ret", "paths": ["read"] }
   ],
   "fragments": [
