@@ -56,19 +56,10 @@ Prefer to write the spec yourself? The format is in [`SKILL.md`](sequence-diagra
 
 ## What you get
 
-**One file, every flow.** A whole product in one place. Switch scenarios from a dropdown — same lanes and colours every time.
-
-<img src="docs/img/feat-scenarios.png" width="440" alt="A dropdown listing every flow in one file">
-
-**Colour lenses.** Light up one path from start to finish, or shade the arrows by cost or latency against your real numbers.
-
-<img src="docs/img/feat-lens.png" width="800" alt="The cost lens shading arrows, with a scaled legend">
-
-**Click any row for the detail.** Why the call happens, what it changes, what breaks, and the files behind it — filled in by your agent as it reads the code.
-
-<img src="docs/img/feat-detail.png" width="600" alt="A click-a-row detail card with why, what changes, on-fail, and source files">
-
-**Export to PNG.** One click saves the whole diagram, swimlane header and all, as a crisp image for a doc or a PR.
+- **One file, every flow.** A whole product in one place. Switch scenarios from a dropdown — same lanes and colours every time.
+- **Colour lenses.** Light up one path from start to finish, or shade the arrows by cost or latency against your real numbers.
+- **Click any row for the detail.** Why the call happens, what it changes, what breaks, and the files behind it — filled in by your agent as it reads the code.
+- **Export to PNG.** One click saves the whole diagram, swimlane header and all, as a crisp image for a doc or a PR.
 
 Plus UML arrows, markers for network calls and data stores, phase bands, `opt` / `alt` / `loop` boxes, and a sticky header.
 
