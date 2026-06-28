@@ -14,8 +14,6 @@
 
 <img src="docs/img/hero.png" width="820" alt="A sign-in flow with the Google path lit up">
 
-<em>Click any row, switch scenarios, export a PNG — one self-contained HTML file.</em>
-
 </div>
 
 Describe a flow to your coding agent. It reads your code and renders an interactive sequence diagram. The layout and colours are fixed, so every diagram comes out consistent and you never touch styling.
