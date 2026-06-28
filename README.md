@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="docs/img/logo.png" width="560" alt="Sequence Diagrams">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/logo-dark.png">
+  <img src="docs/img/logo-light.png" width="560" alt="Sequence Diagrams">
+</picture>
 
 ![license](https://img.shields.io/badge/license-MIT-555?style=flat-square)
 ![agent skill](https://img.shields.io/badge/agent_skill-SKILL.md-555?style=flat-square)
