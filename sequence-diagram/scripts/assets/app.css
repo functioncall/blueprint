@@ -15,7 +15,8 @@ body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
 .appbar{ flex:0 0 auto; display:flex; align-items:center; gap:16px; height:44px; padding:0 16px;
   background:var(--band); border-bottom:1px solid var(--rule); }
 .brand{ display:flex; align-items:center; gap:7px; font-weight:700; font-size:13px; white-space:nowrap; }
-.brand .mark{ color:var(--accent); font-size:15px; }
+.brand .mark{ display:flex; align-items:center; }
+.brand .mark svg{ height:20px; width:auto; display:block; }
 .crumb{ flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:9px; }
 .crumb-proj{ color:var(--soft); font-size:12.5px; white-space:nowrap; }
 .crumb-sep{ color:var(--rule); }

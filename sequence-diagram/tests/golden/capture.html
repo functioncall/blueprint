@@ -19,7 +19,8 @@ body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
 .appbar{ flex:0 0 auto; display:flex; align-items:center; gap:16px; height:44px; padding:0 16px;
   background:var(--band); border-bottom:1px solid var(--rule); }
 .brand{ display:flex; align-items:center; gap:7px; font-weight:700; font-size:13px; white-space:nowrap; }
-.brand .mark{ color:var(--accent); font-size:15px; }
+.brand .mark{ display:flex; align-items:center; }
+.brand .mark svg{ height:20px; width:auto; display:block; }
 .crumb{ flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:9px; }
 .crumb-proj{ color:var(--soft); font-size:12.5px; white-space:nowrap; }
 .crumb-sep{ color:var(--rule); }
@@ -151,7 +152,7 @@ body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
 </head><body>
 <div class="app solo">
   <header class="appbar">
-    <div class="brand"><span class="mark">#</span><span>Sequence Diagrams</span></div>
+    <div class="brand"><span class="mark"><svg viewBox="0 0 160 140" aria-hidden="true"><g stroke="#897D58" stroke-width="2.6" stroke-dasharray="2 7" stroke-linecap="round"><line x1="26" y1="12" x2="26" y2="128"/><line x1="80" y1="12" x2="80" y2="128"/><line x1="134" y1="12" x2="134" y2="128"/></g><g stroke="#21201B" stroke-linecap="round"><line x1="31.5" y1="36" x2="128.5" y2="36" stroke-width="2.8"/><line x1="128.5" y1="84" x2="85.5" y2="84" stroke-width="2.8"/><line x1="74.5" y1="110" x2="31.5" y2="110" stroke-width="2.6" stroke-dasharray="6 5"/></g><rect x="20.5" y="24" width="11" height="34" rx="4" fill="#2E9D8F"/><rect x="74.5" y="50" width="11" height="72" rx="4" fill="#5E6CB0"/><rect x="128.5" y="34" width="11" height="62" rx="4" fill="#B0432F"/></svg></span><span>Sequence Diagrams</span></div>
     <div class="crumb">
       <span class="crumb-proj">Diagrams</span>
       <span class="crumb-sep">/</span>
