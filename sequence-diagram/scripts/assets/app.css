@@ -89,8 +89,8 @@ body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
 .legend{ font-size:11px; color:var(--soft); display:flex; align-items:center; gap:7px; white-space:nowrap; }
 .legend[hidden]{ display:none!important; }
 .legend .sw{ width:11px; height:11px; border-radius:2px; display:inline-block; }
-.legend .ramp{ width:80px; height:9px; display:inline-block;
-  background:linear-gradient(90deg,#D9D2C4,#ABA493,#7C7666,#4E493D,#262320); }
+.legend .ramp{ width:80px; height:9px; display:inline-block; border-radius:2px;
+  background:linear-gradient(90deg,#2FA05A,#9FB83C,#E6B12E,#E07B2A,#C0392B); }
 
 /* messages: entrance + interactive states */
 .msg{ animation:rise .5s ease both; animation-delay:var(--d); }
@@ -115,9 +115,9 @@ body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
 /* metric lenses */
 .diagram.lens-cost .msg:not(.has-cost),
 .diagram.lens-lat .msg:not(.has-lat){ opacity:.14; }
-.diagram.lens-cost .msg.has-cost .arrow{ stroke:var(--c-cost)!important; stroke-width:2.2; }
+.diagram.lens-cost .msg.has-cost .arrow{ stroke:var(--c-cost)!important; stroke-width:3.4; }
 .diagram.lens-cost .msg.has-cost .ah{ fill:var(--c-cost)!important; stroke:var(--c-cost)!important; }
-.diagram.lens-lat .msg.has-lat .arrow{ stroke:var(--c-lat)!important; stroke-width:2.2; }
+.diagram.lens-lat .msg.has-lat .arrow{ stroke:var(--c-lat)!important; stroke-width:3.4; }
 .diagram.lens-lat .msg.has-lat .ah{ fill:var(--c-lat)!important; stroke:var(--c-lat)!important; }
 
 /* click-detail card — tiered: why headline · route sub-line · guard · prose · chips · footer */

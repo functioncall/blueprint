@@ -282,8 +282,8 @@ def _prep_lenses(scn):
     lat_vals = [m["metrics"]["latency_ms"] for m in msgs if "latency_ms" in m.get("metrics", {})]
     def ramp(vals, v):
         lo, hi = (min(vals), max(vals)) if vals else (0, 1)
-        t = 1.0 if hi == lo else (v - lo) / (hi - lo)
-        return T.metric_color(0.30 + 0.70 * t)            # floor so smallest still clearly reads
+        t = 0.5 if hi == lo else (v - lo) / (hi - lo)     # all-equal → neutral amber
+        return T.metric_color(t)                          # green(low) → red(high) heatmap
     for m in msgs:
         mm = m.get("metrics", {})
         if "cost" in mm:

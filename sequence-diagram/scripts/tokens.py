@@ -112,10 +112,11 @@ def sub_color(i, n, j, k):
 
 NEUTRAL = oklch_hex(0.64, 0.018, 80)     # warm-grey anchor for the human "user" actor
 
-# ── metric-lens sequential scale — hueless graphite (warm-grey → near-black ink).
-# Magnitude reads as INK DENSITY, so it can never be mistaken for a categorical hue now
-# that the bars span the whole wheel. pale → deep == low → high. ──────────────
-METRIC_RAMP = ["#D9D2C4", "#ABA493", "#7C7666", "#4E493D", "#262320"]
+# ── metric-lens scale — green→amber→red heatmap (low → high).
+# A traffic-light ramp: cheap/fast reads green, expensive/slow reads red, with amber between.
+# Hue (not ink density) carries magnitude, so lit arrows POP against the black diagram lines
+# and the pale end is no longer invisible. Same ramp drives both the cost and latency lenses.
+METRIC_RAMP = ["#2FA05A", "#9FB83C", "#E6B12E", "#E07B2A", "#C0392B"]
 
 def metric_color(t):
     """t in [0,1] → hex on the sequential ramp (linear-interp between stops)."""

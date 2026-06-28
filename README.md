@@ -47,7 +47,9 @@ The first run does the real research. After that it stays cheap, because it only
 
 <img src="docs/img/feat-detail.png" width="800" alt="Click-a-row detail card with why, what changes, on-fail, and source files">
 
-You also get UML arrows (call, return, async), markers for network calls vs data stores, phase bands, `opt` / `alt` / `loop` boxes, a sticky header, and one-click PNG export.
+**Export to PNG.** One click in the toolbar saves the whole diagram, swimlane header and all, as a crisp PNG you can drop in a doc or a PR.
+
+You also get UML arrows (call, return, async), markers for network calls vs data stores, phase bands, `opt` / `alt` / `loop` boxes, and a sticky header.
 
 ## Quickstart
 
