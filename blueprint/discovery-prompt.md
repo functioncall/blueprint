@@ -5,7 +5,7 @@
 > all-in-one prompt only for a tiny repo where one agent can comfortably map every journey at
 > once. It is also the shared schema reference the split prompts point back to.
 
-You are mapping a codebase into a **master diagram file** for the sequence-diagram skill.
+You are mapping a codebase into a **master diagram file** for the blueprint skill.
 Explore the repo and answer these questions, then output ONE JSON object (the master file,
 the v3 schema below) and nothing else.
 

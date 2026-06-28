@@ -1,6 +1,6 @@
 ---
-name: sequence-diagram
-description: Render an interactive, self-contained HTML sequence-diagram app from a JSON spec, using a frozen renderer (tokens + layout + emitter) so the drafting-paper look, generated OKLCH palette, swimlane headers, phase sections, combined fragments, and switchable colour lenses are byte-identical every run on any project. You only ever author JSON. For a whole project it discovers scenarios once into a cached master file and re-renders only what git says changed. Use when the user wants a sequence diagram, a rendered/"proper" diagram (not ASCII), to visualise a request flow, API/service interaction, who-calls-whom over time, or to diagram a scenario as an interactive artifact (PNG export is built into the HTML).
+name: blueprint
+description: Render an interactive, self-contained HTML blueprint app from a JSON spec, using a frozen renderer (tokens + layout + emitter) so the drafting-paper look, generated OKLCH palette, swimlane headers, phase sections, combined fragments, and switchable colour lenses are byte-identical every run on any project. You only ever author JSON. For a whole project it discovers scenarios once into a cached master file and re-renders only what git says changed. Use when the user wants a sequence diagram, a rendered/"proper" diagram (not ASCII), to visualise a request flow, API/service interaction, who-calls-whom over time, or to diagram a scenario as an interactive artifact (PNG export is built into the HTML).
 ---
 
 # Sequence diagram
@@ -21,7 +21,7 @@ bottom toolbar of **colour lenses** + a PNG export. Click any message for its de
 
 **A. Ad-hoc — one diagram, right now.** Write a spec (schema below) and render:
 ```bash
-python3 ~/.claude/skills/sequence-diagram/scripts/render_html.py spec.json index.html
+python3 ~/.claude/skills/blueprint/scripts/render_html.py spec.json index.html
 ```
 A spec is either a single scenario `{title,actors,messages,…}` or a master
 `{project,scenarios:[…]}`. Copy `examples/web-request.json` (single) or

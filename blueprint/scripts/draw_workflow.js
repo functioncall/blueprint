@@ -1,6 +1,6 @@
 export const meta = {
-  name: 'sequence-diagram-draw',
-  description: 'Draw one sequence-diagram scenario per chosen flow, in parallel',
+  name: 'blueprint-draw',
+  description: 'Draw one blueprint scenario per chosen flow, in parallel',
   phases: [{ title: 'Draw' }],
 }
 
@@ -15,7 +15,7 @@ export const meta = {
 // >>> the main loop replaces these four literals for each run:
 const repo = '/ABS/PATH/TO/REPO'
 const masterPath = repo + '/agent_docs/diagrams/architecture.json'
-const skillDir = '/ABS/PATH/TO/.claude/skills/sequence-diagram'
+const skillDir = '/ABS/PATH/TO/.claude/skills/blueprint'
 const flows = [ /* {id, title, subtitle, source_paths:[...]}, ... */ ]
 
 const SCENARIO_SCHEMA = {
@@ -61,7 +61,7 @@ const drawn = await parallel(
   flows.map((f) => () =>
     agent(
       [
-        'Draw EXACTLY ONE sequence-diagram scenario as a v3 JSON object.',
+        'Draw EXACTLY ONE blueprint scenario as a v3 JSON object.',
         '',
         `Flow id: ${f.id}`,
         `Title: ${f.title}`,

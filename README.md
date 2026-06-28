@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/img/logo.png" width="540" alt="Sequence Diagrams">
+<img src="docs/img/logo.png" width="540" alt="Blueprint">
 
 *Interactive sequence diagrams, drawn from your code.*
 
@@ -30,8 +30,8 @@ It copies the folder into your skills directory. Nothing to configure.
 <summary>Prefer to do it by hand?</summary>
 
 ```bash
-git clone https://github.com/functioncall/sequence-diagram-skill.git
-cp -r sequence-diagram-skill/sequence-diagram ~/.claude/skills/
+git clone https://github.com/functioncall/blueprint.git
+cp -r blueprint/blueprint ~/.claude/skills/
 ```
 
 Python 3, standard library only.
@@ -49,7 +49,7 @@ Just ask:
 
 Your agent reads the code, writes the spec, and renders the diagram. Point it at a whole repo and it maps every flow into one file, then only redraws the ones that change.
 
-Prefer to write the spec yourself? The format is in [`SKILL.md`](sequence-diagram/SKILL.md) and [`USAGE.md`](sequence-diagram/USAGE.md).
+Prefer to write the spec yourself? The format is in [`SKILL.md`](blueprint/SKILL.md) and [`USAGE.md`](blueprint/USAGE.md).
 
 ## What you get
 

@@ -9,7 +9,7 @@ the legend behind the legend, kept in sync with the implementation.
 - **One fixed-viewport frame:** a clean header bar on top, the active diagram below. Only the
   diagram body scrolls — there is no page scroll, so a big diagram never fights nested scrolls.
 - **Header** — one uncluttered bar (no inner vertical dividers; only the bottom hairline, which
-  lines up with the diagram grid): `# Sequence Diagrams · <project> / <scenario ▾> · N scenarios`.
+  lines up with the diagram grid): `# Blueprint · <project> / <scenario ▾> · N scenarios`.
 - **Scenario switcher** — with 2+ scenarios the active title is a **dropdown** (▾) listing all
   scenarios; pick one to swap the panel. One scenario → plain text, no dropdown. `↑/↓`/`j/k` cycle.
 - **Toolbar** (bottom) — a row of border-divided cells: the colour-lens toggles, the active

@@ -1,12 +1,12 @@
-# sequence-diagram — usage cheatsheet
+# blueprint — usage cheatsheet
 
-`SK=~/.claude/skills/sequence-diagram`  ·  full docs: `SKILL.md` · design legend: `STYLE.md`
+`SK=~/.claude/skills/blueprint`  ·  full docs: `SKILL.md` · design legend: `STYLE.md`
 
 ## Just ask (skill auto-triggers, any project)
 ```
-"sequence-diagram of the checkout flow"
+"blueprint of the checkout flow"
 "diagram the login request"
-"/sequence-diagram the webhook flow"
+"/blueprint the webhook flow"
 ```
 It writes the JSON, renders the interactive `index.html`, and sends it. You don't touch scripts.
 

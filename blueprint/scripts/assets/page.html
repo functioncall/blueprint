@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{PROJECT}} — Blueprint</title>
+<style>{{CSS}}</style>
+</head><body>
+<div class="{{APPCLASS}}">
+  <header class="appbar">
+    <div class="brand"><span class="mark"><svg viewBox="0 0 160 140" aria-hidden="true"><g stroke="#897D58" stroke-width="2.6" stroke-dasharray="2 7" stroke-linecap="round"><line x1="26" y1="12" x2="26" y2="134"/><line x1="80" y1="12" x2="80" y2="134"/><line x1="134" y1="12" x2="134" y2="134"/></g><g stroke="#21201B" stroke-linecap="round"><line x1="31.5" y1="40" x2="74.5" y2="40" stroke-width="2.8"/><line x1="85.5" y1="72" x2="128.5" y2="72" stroke-width="2.8"/></g><line x1="128.5" y1="106" x2="31.5" y2="106" stroke="#21201B" stroke-width="2.6" stroke-dasharray="7 5" stroke-linecap="butt"/><rect x="20.5" y="28" width="11" height="86" rx="4" fill="#2E9D8F"/><rect x="74.5" y="30" width="11" height="54" rx="4" fill="#5E6CB0"/><rect x="128.5" y="62" width="11" height="52" rx="4" fill="#B0432F"/></svg></span><span>Blueprint</span></div>
+    <div class="crumb">
+      <span class="crumb-proj">{{PROJECT}}</span>
+      <span class="crumb-sep">/</span>
+      <div class="switch">
+        <button class="switch-btn" id="switchBtn" aria-haspopup="true" aria-expanded="false">
+          <span class="switch-title" id="crumbTitle"></span>
+          <span class="switch-caret">▾</span>
+        </button>
+        <div class="switch-menu" id="switchMenu" hidden>{{MENU}}</div>
+      </div>
+    </div>
+    <div class="barmeta"><span id="barCount"></span></div>
+  </header>
+  <main class="stage">{{CARDS}}</main>
+</div>
+<div id="pop" class="popover" hidden></div>
+<script>{{JS}}</script>
+</body></html>
