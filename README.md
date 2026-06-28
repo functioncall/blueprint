@@ -1,9 +1,6 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/logo-dark.png">
-  <img src="docs/img/logo-light.png" width="540" alt="Sequence Diagrams">
-</picture>
+<img src="docs/img/logo.png" width="540" alt="Sequence Diagrams">
 
 *Interactive sequence diagrams, drawn from your code.*
 
