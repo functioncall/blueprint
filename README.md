@@ -9,7 +9,7 @@
 ![python](https://img.shields.io/badge/python_3-zero_deps-555?style=flat-square)
 ![output](https://img.shields.io/badge/output-self--contained_HTML-555?style=flat-square)
 
-<img src="docs/img/hero.gif" width="820" alt="Switching scenarios, lighting up a path, and shading arrows by cost and latency in one interactive diagram">
+<img src="docs/img/hero.png" width="820" alt="A sign-in flow with the Google path lit up">
 
 </div>
 
