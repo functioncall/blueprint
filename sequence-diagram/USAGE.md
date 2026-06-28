@@ -65,7 +65,8 @@ project:  enumerate ─▶ [pick / "draw all"] ─▶ draw_workflow.js (N agents
 ```
 - **zone** (role → ordering + generated OKLCH colour): `user · client/frontend/mobile · server/api/worker · <external: vendors, datastores>`. `kind:"internal"` → server tier. No per-zone hex; colour is positional.
 - **sub** = sub-services → lifelines under a parent band (cap ~3). **Author order is ignored** — left→right is computed (user → client → server → external, busiest-first).
-- **metrics** (not a `cost` boolean) feed the cost/latency lenses; **paths** feed flow-highlight lenses; **src** shows in the click popover; **fragments.range** indexes the NON-phase messages.
+- **metrics** `{cost,latency_ms}` feed the **cost/latency lenses** (a green→amber→red heatmap with thicker lit arrows); **paths** feed flow-highlight lenses; **fragments.range** indexes the NON-phase messages.
+- **detail** `{why,sends,effects,fails,ordering,auth}` (all keys optional) fills the **click-a-row detail card** — `why` is the headline, `effects`/`fails` are short prose, `sends`/`auth`/`ordering` render as chips; **src** (`File.swift → route.ts`) shows in that card's footer. Add it only for load-bearing messages.
 
 ## Scripts
 | Script | Does |

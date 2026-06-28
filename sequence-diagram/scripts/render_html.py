@@ -374,17 +374,26 @@ def main():
         sys.exit("usage: render_html.py <spec.json> [out.html]")
     spec = json.load(open(sys.argv[1]))
     out = sys.argv[2] if len(sys.argv) > 2 else "index.html"
-    open(out, "w").write(emit_page(spec))
+    try:
+        html = emit_page(spec)
+    except ValueError as e:                 # bad actor ref etc. — clean message, not a traceback
+        sys.exit(f"render error: {e}")
+    open(out, "w").write(html)
     print(f"wrote {out}")
 
 
 # ── frozen CSS / JS / PAGE shell (kept here so output is one self-contained file) ─
-CSS = open(os.path.join(os.path.dirname(__file__), "assets", "app.css")).read() \
-    if os.path.exists(os.path.join(os.path.dirname(__file__), "assets", "app.css")) else ""
-JS = open(os.path.join(os.path.dirname(__file__), "assets", "app.js")).read() \
-    if os.path.exists(os.path.join(os.path.dirname(__file__), "assets", "app.js")) else ""
-PAGE = open(os.path.join(os.path.dirname(__file__), "assets", "page.html")).read() \
-    if os.path.exists(os.path.join(os.path.dirname(__file__), "assets", "page.html")) else ""
+def _asset(name):
+    """Read a required asset, failing LOUDLY if it's missing — a silent '' would
+    emit a styleless/broken page with no error."""
+    p = os.path.join(os.path.dirname(__file__), "assets", name)
+    if not os.path.exists(p):
+        raise FileNotFoundError(f"required renderer asset missing: {p}")
+    return open(p).read()
+
+CSS = _asset("app.css")
+JS = _asset("app.js")
+PAGE = _asset("page.html")
 
 if __name__ == "__main__":
     main()

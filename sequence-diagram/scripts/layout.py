@@ -114,7 +114,7 @@ def compute(scenario):
     def idx(ref):
         if ref in name_to_i:
             return name_to_i[ref]
-        raise SystemExit(f"unknown actor '{ref}' — known: {sorted(set(name_to_i))}")
+        raise ValueError(f"unknown actor '{ref}' — known: {sorted(set(name_to_i))}")
 
     def label_of(ref):                  # readable participant: "Server / API" (sub) or "Claude" (bare)
         c = cols[idx(ref)]

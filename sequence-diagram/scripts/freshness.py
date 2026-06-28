@@ -27,7 +27,9 @@ def touched(paths, changed):
     for cf in changed:
         for p in paths:
             pp = p.rstrip("/")
-            if cf == pp or cf.startswith(pp + "/") or cf.startswith(pp):
+            # exact file, or a file UNDER a directory path. NOT a bare prefix —
+            # else source_path "src/store" wrongly matches changed "src/storefront.ts".
+            if cf == pp or cf.startswith(pp + "/"):
                 hits.append(cf)
                 break
     return hits

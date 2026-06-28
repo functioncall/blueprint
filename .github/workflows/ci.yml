@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate example specs
+        run: |
+          for f in sequence-diagram/examples/*.json; do
+            echo "validating $f"
+            python3 sequence-diagram/scripts/validate_master.py "$f"
+          done
+
+      - name: Run unit + golden tests
+        working-directory: sequence-diagram
+        run: python3 -m unittest discover -s tests -v

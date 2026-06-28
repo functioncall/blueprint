@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Diagrams — sequence diagrams</title>
+<style>:root{ --accent:#B23A2E; --paper:#F3EEE1; --ink:#21201B; --soft:#6B6657;
+  --rule:#C6BDA3; --band:#EFE8D8; --bg:#E6DFCD; --grid:#211E1408;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace; }
+*{ box-sizing:border-box; }
+/* the PAGE never scrolls — only the diagram body does (no scroll from header/toolbar). */
+html,body{ margin:0; height:100%; overflow:hidden; overscroll-behavior:none; }
+body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
+  -webkit-font-smoothing:antialiased; }
+
+/* fixed-viewport frame: a clean app header, then the diagram stage. Only .scroll scrolls. */
+.app{ height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+
+/* app header — ONE clean bar (no inner vertical dividers; only the bottom rule, which
+   aligns with the diagram grid below). brand · project / <scenario ▾> · count */
+.appbar{ flex:0 0 auto; display:flex; align-items:center; gap:16px; height:44px; padding:0 16px;
+  background:var(--band); border-bottom:1px solid var(--rule); }
+.brand{ display:flex; align-items:center; gap:7px; font-weight:700; font-size:13px; white-space:nowrap; }
+.brand .mark{ color:var(--accent); font-size:15px; }
+.crumb{ flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:9px; }
+.crumb-proj{ color:var(--soft); font-size:12.5px; white-space:nowrap; }
+.crumb-sep{ color:var(--rule); }
+.barmeta{ flex:0 0 auto; color:var(--soft); font-size:11px; white-space:nowrap; }
+
+/* scenario switcher — the active title IS a dropdown. No ancestor clips (so the menu can
+   escape downward); only the title text itself ellipsises. */
+.switch{ position:relative; min-width:0; flex:0 1 auto; display:flex; }
+.switch-btn{ display:inline-flex; align-items:center; gap:8px; min-width:0; max-width:100%; cursor:pointer;
+  font:inherit; background:none; border:0; padding:3px 7px; margin-left:-7px; border-radius:6px; color:var(--ink); }
+.switch-btn:hover{ background:#0000000d; }
+/* with 2+ scenarios the title IS a dropdown — make it an obvious pill CTA, and never truncate it */
+.app:not(.solo) .switch-btn{ background:var(--paper); border:1px solid var(--rule);
+  padding:4px 11px; margin-left:0; box-shadow:0 1px 2px #00000012; }
+.app:not(.solo) .switch-btn:hover{ border-color:var(--soft); background:#fff8; }
+.switch-title{ min-width:0; font-weight:700; font-size:13px; white-space:nowrap; }
+.switch-caret{ color:var(--ink); font-size:12px; line-height:1; }
+.app.solo .switch-btn{ cursor:default; }
+.app.solo .switch-btn:hover{ background:none; }
+.app.solo .switch-caret{ display:none; }
+.switch-menu{ position:absolute; top:calc(100% + 6px); left:-7px; z-index:40;
+  min-width:320px; max-width:460px; max-height:72vh; overflow:auto;
+  background:var(--paper); border:1px solid var(--rule); box-shadow:0 12px 32px -12px #0008; }
+.switch-menu[hidden]{ display:none; }
+.mitem{ display:block; width:100%; text-align:left; cursor:pointer; font:inherit; color:var(--ink);
+  background:none; border:0; border-bottom:1px solid var(--rule); border-left:3px solid transparent;
+  padding:9px 13px; }
+.mitem:last-child{ border-bottom:0; }
+.mitem:hover{ background:#0000000a; }
+.mitem.active{ border-left-color:var(--accent); background:#0000000f; }
+.mi-title{ display:block; font-size:12px; font-weight:700; }
+.mi-sub{ display:block; margin-top:2px; font-size:10.5px; color:var(--soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* stage — the one active scenario, full width + full height */
+.stage{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; background:var(--paper); }
+.card{ display:none; flex:1 1 auto; min-height:0; flex-direction:column; }
+.card.active{ display:flex; }
+
+/* pinned swimlane header above the scrolling body. The geometry is already full-bleed —
+   layout.py spreads the columns to fill FILL_W, so every scenario has the SAME natural width
+   regardless of column count. width:100% then maps that one width onto the viewport, so the
+   on-screen scale is identical across scenarios (no per-count inflation) and fills the width. */
+.head{ flex:0 0 auto; overflow:hidden; border-bottom:1px solid var(--rule); }
+.head svg{ display:block; width:100%; height:auto; }
+/* the ONLY scroll container; the engineering-paper grid tiles the whole area so the canvas
+   feel continues into any space below a short diagram (grid is texture, never load-bearing). */
+.scroll{ flex:1 1 auto; min-height:0; overflow:auto; overscroll-behavior:contain;
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px, transparent 1px),
+                   linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:23px 23px; }
+.diagram{ display:block; }
+.diagram svg{ display:block; width:100%; height:auto; }
+
+/* toolbar — bottom row of control cells (lens toggles, legend, export) */
+.toolbar{ flex:0 0 auto; display:flex; align-items:stretch; height:36px; overflow-x:auto;
+  border-top:1px solid var(--rule); background:var(--band); }
+.lenses{ display:flex; align-items:stretch; }
+.lens{ display:flex; align-items:center; white-space:nowrap; padding:0 13px;
+  border:0; border-right:1px solid var(--rule); background:none; font:inherit; font-size:11px;
+  cursor:pointer; color:var(--soft); }
+.lens:hover{ color:var(--ink); background:#0000000a; }
+.lens.on{ background:var(--ink); color:var(--paper); }
+.tb-right{ margin-left:auto; display:flex; align-items:stretch; }
+.legends{ display:flex; align-items:center; padding:0 14px; border-left:1px solid var(--rule); }
+.png{ display:flex; align-items:center; white-space:nowrap; padding:0 14px;
+  border:0; border-left:1px solid var(--rule); background:none; font:inherit; font-size:11px;
+  cursor:pointer; color:var(--ink); }
+.png:hover{ background:#0000000a; }
+.legend{ font-size:11px; color:var(--soft); display:flex; align-items:center; gap:7px; white-space:nowrap; }
+.legend[hidden]{ display:none!important; }
+.legend .sw{ width:11px; height:11px; border-radius:2px; display:inline-block; }
+.legend .ramp{ width:80px; height:9px; display:inline-block; border-radius:2px;
+  background:linear-gradient(90deg,#2FA05A,#9FB83C,#E6B12E,#E07B2A,#C0392B); }
+
+/* messages: entrance + interactive states */
+.msg{ animation:rise .5s ease both; animation-delay:var(--d); }
+@keyframes rise{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+.msg .arrow.sync{ stroke-dasharray:var(--len); stroke-dashoffset:var(--len);
+  animation:draw .55s ease forwards; animation-delay:var(--d); }
+@keyframes draw{ to{ stroke-dashoffset:0 } }
+.msg{ cursor:pointer; }
+.mtx{ paint-order:stroke; }
+
+/* hover-dim */
+.diagram.hov .msg:not(.hl){ opacity:.16; }
+
+/* path lens */
+.lens-path .msg{ opacity:.16; transition:opacity .2s; }
+.msg.lit{ opacity:1!important; }
+.msg.lit .arrow{ stroke:var(--accent)!important; }
+.msg.lit .ah{ fill:var(--accent)!important; stroke:var(--accent)!important; }
+.msg.lit .mtx{ fill:var(--accent); }
+.msg.lit .tmark *{ stroke:var(--accent)!important; }
+
+/* metric lenses */
+.diagram.lens-cost .msg:not(.has-cost),
+.diagram.lens-lat .msg:not(.has-lat){ opacity:.14; }
+.diagram.lens-cost .msg.has-cost .arrow{ stroke:var(--c-cost)!important; stroke-width:3.4; }
+.diagram.lens-cost .msg.has-cost .ah{ fill:var(--c-cost)!important; stroke:var(--c-cost)!important; }
+.diagram.lens-lat .msg.has-lat .arrow{ stroke:var(--c-lat)!important; stroke-width:3.4; }
+.diagram.lens-lat .msg.has-lat .ah{ fill:var(--c-lat)!important; stroke:var(--c-lat)!important; }
+
+/* click-detail card — tiered: why headline · route sub-line · guard · prose · chips · footer */
+.popover{ position:fixed; z-index:50; max-width:340px; min-width:210px; background:var(--paper);
+  border:1px solid var(--ink); padding:11px 13px; font-size:11.5px; line-height:1.45;
+  box-shadow:0 10px 30px -8px #0008; }
+.popover[hidden]{ display:none; }
+.popover.docked{ left:auto!important; top:auto!important; right:14px; bottom:14px;
+  max-height:calc(100vh - 28px); overflow:auto; }
+.p-why{ font-weight:700; font-size:12.5px; margin-bottom:3px; }
+.p-route{ color:var(--soft); font-size:10.5px; }
+.p-guard{ color:var(--soft); font-size:10.5px; margin-top:3px; }
+.p-body{ display:flex; flex-direction:column; gap:4px; margin-top:8px; }
+.p-row{ display:flex; gap:8px; }
+.p-row .pl{ flex:0 0 44px; color:var(--soft); text-transform:uppercase;
+  font-size:9px; letter-spacing:.05em; padding-top:1px; }
+.p-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.p-chips .chip{ background:var(--band); border:1px solid var(--rule); border-radius:10px;
+  padding:1px 8px; font-size:10px; color:var(--ink); }
+.p-foot{ color:var(--soft); font-size:10px; margin-top:8px;
+  border-top:1px solid var(--rule); padding-top:6px; }
+
+@media (prefers-reduced-motion:reduce){
+  .msg, .msg .arrow.sync{ animation:none!important; stroke-dashoffset:0!important; opacity:1; }
+}
+</style>
+</head><body>
+<div class="app solo">
+  <header class="appbar">
+    <div class="brand"><span class="mark">#</span><span>Sequence Diagrams</span></div>
+    <div class="crumb">
+      <span class="crumb-proj">Diagrams</span>
+      <span class="crumb-sep">/</span>
+      <div class="switch">
+        <button class="switch-btn" id="switchBtn" aria-haspopup="true" aria-expanded="false">
+          <span class="switch-title" id="crumbTitle"></span>
+          <span class="switch-caret">▾</span>
+        </button>
+        <div class="switch-menu" id="switchMenu" hidden></div>
+      </div>
+    </div>
+    <div class="barmeta"><span id="barCount"></span></div>
+  </header>
+  <main class="stage"><section class="card active" data-card="s0" data-title="Web request — cached read" data-sub="browser → API → cache, falling back to the DB" data-updated="2026-06-27">
+  <div class="head"><svg class="seqhead" viewBox="0 0 1380 42" width="1380" height="42" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace"><rect x="0.0" y="0.0" width="30.0" height="42.0" rx="0" fill="#E6DECA" stroke="none" stroke-width="1.0"/><rect x="30.0" y="0.0" width="1350.0" height="42.0" rx="0" fill="#E7DEC8" stroke="none" stroke-width="1.0"/><line x1="30.0" y1="0.0" x2="30.0" y2="42.0" stroke="#B4AA8C" stroke-width="1.0"/><text x="165.0" y="11.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="12" fill="#807A71" text-anchor="middle" font-weight="700" dominant-baseline="middle">User</text><text x="165.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.0" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle">browser</text><line x1="300.0" y1="0.0" x2="300.0" y2="42.0" stroke="#B4AA8C" stroke-width="1.1"/><text x="435.0" y="11.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="12" fill="#008B7D" text-anchor="middle" font-weight="700" dominant-baseline="middle">Web</text><text x="435.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.0" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle">Next.js</text><line x1="570.0" y1="0.0" x2="570.0" y2="42.0" stroke="#B4AA8C" stroke-width="1.1"/><text x="705.0" y="11.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="12" fill="#3E79B6" text-anchor="middle" font-weight="700" dominant-baseline="middle">API</text><text x="705.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.0" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle">/v1</text><line x1="840.0" y1="0.0" x2="840.0" y2="42.0" stroke="#B4AA8C" stroke-width="1.1"/><text x="975.0" y="11.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="12" fill="#925FA0" text-anchor="middle" font-weight="700" dominant-baseline="middle">Redis</text><line x1="1110.0" y1="0.0" x2="1110.0" y2="42.0" stroke="#B4AA8C" stroke-width="1.1"/><text x="1245.0" y="11.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="12" fill="#AE5952" text-anchor="middle" font-weight="700" dominant-baseline="middle">Postgres</text></svg></div>
+  <div class="scroll" style="background-image:url('data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20preserveAspectRatio=%27none%27%20viewBox=%270%200%201380%2010%27%3E%3Cline%20x1=%27165.0%27%20y1=%270%27%20x2=%27165.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%27435.0%27%20y1=%270%27%20x2=%27435.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%27705.0%27%20y1=%270%27%20x2=%27705.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%27975.0%27%20y1=%270%27%20x2=%27975.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%271245.0%27%20y1=%270%27%20x2=%271245.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3C/svg%3E'),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:100% 10px,23px 23px,23px 23px;background-repeat:repeat-y,repeat,repeat;"><div class="diagram lens-none"><svg class="seqbody" viewBox="0 42 1380 818" width="1380" height="818" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace"><defs><pattern id="grid-s0" width="23" height="23" patternUnits="userSpaceOnUse">
+           <path d="M 23 0 L 0 0 0 23" fill="none" stroke="#211E1408" stroke-width="1"/></pattern></defs><rect x="0.0" y="42.0" width="1380.0" height="818.0" rx="0" fill="#F3EEE1" stroke="none" stroke-width="1.0"/><rect x="0.0" y="42.0" width="1380.0" height="818.0" rx="0" fill="url(#grid-s0)" stroke="none" stroke-width="1.0"/><rect x="300.0" y="42.0" width="270.0" height="818.0" rx="0" fill="#7B73560F" stroke="none" stroke-width="1.0"/><line x1="300.0" y1="42.0" x2="300.0" y2="860.0" stroke="#B4AA8C" stroke-width="1.0"/><line x1="570.0" y1="42.0" x2="570.0" y2="860.0" stroke="#B4AA8C" stroke-width="1.0"/><rect x="840.0" y="42.0" width="270.0" height="818.0" rx="0" fill="#7B73560F" stroke="none" stroke-width="1.0"/><line x1="840.0" y1="42.0" x2="840.0" y2="860.0" stroke="#B4AA8C" stroke-width="1.0"/><line x1="1110.0" y1="42.0" x2="1110.0" y2="860.0" stroke="#B4AA8C" stroke-width="1.0"/><line x1="165.0" y1="42.0" x2="165.0" y2="860.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="435.0" y1="42.0" x2="435.0" y2="860.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="705.0" y1="42.0" x2="705.0" y2="860.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="975.0" y1="42.0" x2="975.0" y2="860.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="1245.0" y1="42.0" x2="1245.0" y2="860.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><rect x="0.0" y="42.0" width="30.0" height="818.0" rx="0" fill="#E6DECA" stroke="none" stroke-width="1.0"/><line x1="30.0" y1="42.0" x2="30.0" y2="860.0" stroke="#B4AA8C" stroke-width="1.0"/><text x="15.0" y="133.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#6B6657" text-anchor="middle" font-weight="700" dominant-baseline="middle" transform="rotate(-90 15.0 133.0)">REQUEST</text><line x1="0.0" y1="224.0" x2="1380.0" y2="224.0" stroke="#9E9173" stroke-width="1.3"/><text x="15.0" y="542.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#6B6657" text-anchor="middle" font-weight="700" dominant-baseline="middle" transform="rotate(-90 15.0 542.0)">FALLBACK</text><rect x="689.0" y="244.0" width="572.0" height="121.0" rx="3" fill="none" stroke="#8A7E5C" stroke-width="1.3" stroke-dasharray="6 4" class="frame"/><rect x="689.0" y="244.0" width="32.1" height="15.0" rx="2" fill="#E2D9C0" stroke="#8A7E5C" stroke-width="1.2"/><text x="705.1" y="252.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10" fill="#8A7E5C" text-anchor="middle" font-weight="700" dominant-baseline="middle">opt</text><text x="728.1" y="252.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10" fill="#8A7E5C" text-anchor="start" font-weight="400" dominant-baseline="middle">[cache miss]</text><rect x="972.0" y="154.0" width="6.0" height="38.0" rx="1.5" fill="#A66CB6" stroke="#784E83" stroke-width="0.8" class="bar"/><rect x="1242.0" y="276.0" width="6.0" height="38.0" rx="1.5" fill="#C6655D" stroke="#8F4943" stroke-width="0.8" class="bar"/><rect x="702.0" y="116.0" width="6.0" height="274.0" rx="1.5" fill="#478ACF" stroke="#336395" stroke-width="0.8" class="bar"/><rect x="432.0" y="78.0" width="6.0" height="350.0" rx="1.5" fill="#009E8E" stroke="#007266" stroke-width="0.8" class="bar"/><rect x="972.0" y="352.0" width="6.0" height="18.0" rx="1.5" fill="#A66CB6" stroke="#784E83" stroke-width="0.8" class="bar"/><g class="msg p-read" style="--d:0.000s" data-full="click Buy" data-route="User → Web" data-phase="REQUEST" data-step="1/9"><title>click Buy</title><line class="arrow sync" x1="165.0" y1="78" x2="432.0" y2="78" stroke="#21201B" stroke-width="1.4" style="--len:267.0"/><path d="M432.0,78.0 L424.0,74.0 L424.0,82.0 Z" fill="#21201B" class="ah"/><text x="300.0" y="70.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">click Buy</text></g><g class="msg p-read" style="--d:0.028s" data-full="GET /order/42" data-route="Web → API" data-phase="REQUEST" data-step="2/9" data-src="app/order/page.tsx → routes.ts"><title>GET /order/42</title><line class="arrow sync" x1="438.0" y1="116" x2="702.0" y2="116" stroke="#21201B" stroke-width="1.4" style="--len:264.0"/><path d="M702.0,116.0 L694.0,112.0 L694.0,120.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M521.2,104.6 L523.6,108.0 L521.2,111.4" fill="none" stroke="#6B6657" stroke-width="1.2"/><path d="M525.6,104.6 L529.0,108.0 L525.6,111.4" fill="none" stroke="#6B6657" stroke-width="1.2"/></g><text x="570.0" y="108.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">GET /order/42</text></g><g class="msg" style="--d:0.056s" data-full="read order" data-route="API → Redis" data-phase="REQUEST" data-step="3/9"><title>read order</title><line class="arrow sync" x1="708.0" y1="154" x2="972.0" y2="154" stroke="#21201B" stroke-width="1.4" style="--len:264.0"/><path d="M972.0,154.0 L964.0,150.0 L964.0,158.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M799.9,143.3 V148.4 A3.4,1.4 0 0 0 806.7,148.4 V143.3" fill="none" stroke="#6B6657" stroke-width="1.1"/><ellipse cx="803.3" cy="143.3" rx="3.4" ry="1.4" fill="none" stroke="#6B6657" stroke-width="1.1"/></g><text x="840.0" y="146.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">read order</text><text x="840.0" y="162.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">key order:42</text></g><g class="msg" style="--d:0.084s" data-full="miss" data-route="Redis → API" data-phase="REQUEST" data-step="4/9"><title>miss</title><line class="arrow ret" x1="972.0" y1="192" x2="708.0" y2="192" stroke="#21201B" stroke-width="1.4" stroke-dasharray="5 4" style="--len:264.0"/><path d="M716.0,188.0 L708.0,192.0 L716.0,196.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><text x="840.0" y="184.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">miss</text></g><g class="msg has-lat" style="--d:0.112s;--c-lat:#E6B12E" data-full="query order" data-route="API → Postgres" data-phase="FALLBACK" data-frag="opt · cache miss" data-step="5/9" data-metrics="35ms"><title>query order</title><line class="arrow sync" x1="708.0" y1="276" x2="1242.0" y2="276" stroke="#21201B" stroke-width="1.4" style="--len:534.0"/><path d="M1242.0,276.0 L1234.0,272.0 L1234.0,280.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M932.0,265.3 V270.4 A3.4,1.4 0 0 0 938.8,270.4 V265.3" fill="none" stroke="#6B6657" stroke-width="1.1"/><ellipse cx="935.4" cy="265.3" rx="3.4" ry="1.4" fill="none" stroke="#6B6657" stroke-width="1.1"/></g><text x="975.0" y="268.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">query order</text><text x="975.0" y="284.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">id 42</text></g><g class="msg has-lat" style="--d:0.140s;--c-lat:#E6B12E" data-full="row" data-route="Postgres → API" data-phase="FALLBACK" data-frag="opt · cache miss" data-step="6/9" data-metrics="35ms"><title>row</title><line class="arrow ret" x1="1242.0" y1="314" x2="708.0" y2="314" stroke="#21201B" stroke-width="1.4" stroke-dasharray="5 4" style="--len:534.0"/><path d="M716.0,310.0 L708.0,314.0 L716.0,318.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><text x="975.0" y="306.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">row</text></g><g class="msg" style="--d:0.168s" data-full="cache order" data-route="API → Redis" data-phase="FALLBACK" data-frag="opt · cache miss" data-step="7/9"><title>cache order</title><line class="arrow sync" x1="708.0" y1="352" x2="972.0" y2="352" stroke="#21201B" stroke-width="1.4" style="--len:264.0"/><path d="M972.0,352.0 L964.0,348.0 L964.0,356.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M797.0,341.3 V346.4 A3.4,1.4 0 0 0 803.8,346.4 V341.3" fill="none" stroke="#6B6657" stroke-width="1.1"/><ellipse cx="800.4" cy="341.3" rx="3.4" ry="1.4" fill="none" stroke="#6B6657" stroke-width="1.1"/></g><text x="840.0" y="344.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">cache order</text><text x="840.0" y="360.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">ttl 60s</text></g><g class="msg p-read" style="--d:0.196s" data-full="200 OK" data-route="API → Web" data-phase="FALLBACK" data-step="8/9"><title>200 OK</title><line class="arrow ret" x1="702.0" y1="390" x2="438.0" y2="390" stroke="#21201B" stroke-width="1.4" stroke-dasharray="5 4" style="--len:264.0"/><path d="M446.0,386.0 L438.0,390.0 L446.0,394.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><text x="570.0" y="382.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">200 OK</text><text x="570.0" y="398.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">order json</text></g><g class="msg p-read" style="--d:0.224s" data-full="render order" data-route="Web → User" data-phase="FALLBACK" data-step="9/9"><title>render order</title><line class="arrow ret" x1="432.0" y1="428" x2="165.0" y2="428" stroke="#21201B" stroke-width="1.4" stroke-dasharray="5 4" style="--len:267.0"/><path d="M173.0,424.0 L165.0,428.0 L173.0,432.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><text x="300.0" y="420.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">render order</text></g></svg></div></div>
+  <div class="toolbar">
+    <div class="lenses"><button class="lens on" data-lens="none">Neutral</button><button class="lens" data-lens="path-read">↪ read</button><button class="lens" data-lens="lat">⏱ latency</button></div>
+    <div class="tb-right"><div class="legends"><div class="legend lg-none">solid&nbsp;→&nbsp;call &nbsp;·&nbsp; dashed&nbsp;→&nbsp;return &nbsp;·&nbsp; open&nbsp;tip&nbsp;→&nbsp;async &nbsp;·&nbsp; <svg width="14" height="11" style="vertical-align:-2px"><g class="tmark"><path d="M3.6,2.1 L6.0,5.5 L3.6,8.9" fill="none" stroke="#6B6657" stroke-width="1.2"/><path d="M8.0,2.1 L11.4,5.5 L8.0,8.9" fill="none" stroke="#6B6657" stroke-width="1.2"/></g></svg>&nbsp;other&nbsp;service &nbsp;·&nbsp; <svg width="14" height="11" style="vertical-align:-2px"><g class="tmark"><path d="M3.6,2.8 V7.9 A3.4,1.4 0 0 0 10.4,7.9 V2.8" fill="none" stroke="#6B6657" stroke-width="1.1"/><ellipse cx="7.0" cy="2.8" rx="3.4" ry="1.4" fill="none" stroke="#6B6657" stroke-width="1.1"/></g></svg>&nbsp;data&nbsp;store &nbsp;·&nbsp; ▭&nbsp;active &nbsp;·&nbsp; click&nbsp;a&nbsp;row&nbsp;for&nbsp;detail</div><div class="legend lg-path-read" hidden><span class="sw" style="background:#B23A2E"></span> path “read” lit; rest dimmed</div><div class="legend lg-lat" hidden>latency <span class="ramp"></span> 35–35 ms</div></div><button class="png">⤓ PNG</button></div>
+  </div>
+</section></main>
+</div>
+<div id="pop" class="popover" hidden></div>
+<script>(function(){
+  "use strict";
+  var pop = document.getElementById('pop');
+  function esc(s){ return (s||'').replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  // ── scenario switcher (dropdown in the header) ──────────────────────────────
+  var cards     = Array.prototype.slice.call(document.querySelectorAll('.card'));
+  var mitems    = Array.prototype.slice.call(document.querySelectorAll('.mitem'));
+  var menu      = document.getElementById('switchMenu');
+  var switchBtn = document.getElementById('switchBtn');
+  var crumbTitle= document.getElementById('crumbTitle');
+  var barCount  = document.getElementById('barCount');
+
+  function closeMenu(){ if(menu){ menu.hidden = true; } if(switchBtn){ switchBtn.setAttribute('aria-expanded','false'); } }
+  function select(sid){
+    var card = null;
+    cards.forEach(function(c){ var on = c.dataset.card === sid; c.classList.toggle('active', on); if(on) card = c; });
+    mitems.forEach(function(m){ m.classList.toggle('active', m.dataset.target === sid); });
+    if(card && crumbTitle) crumbTitle.textContent = card.dataset.title || '';
+    closeMenu(); pop.hidden = true;
+  }
+  mitems.forEach(function(m){
+    m.addEventListener('click', function(e){ e.stopPropagation(); select(m.dataset.target); });
+  });
+
+  if(barCount) barCount.textContent = cards.length + (cards.length === 1 ? ' scenario' : ' scenarios');
+  var act = document.querySelector('.card.active') || cards[0];
+  if(act) select(act.dataset.card);
+
+  // open/close the dropdown
+  if(switchBtn && menu && mitems.length){
+    switchBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var open = menu.hidden;
+      menu.hidden = !open;
+      switchBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeMenu(); });
+  }
+
+  // keyboard: ↑/↓ or j/k to cycle scenarios
+  document.addEventListener('keydown', function(e){
+    if(cards.length < 2) return;
+    if(e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    var dir = (e.key === 'ArrowDown' || e.key === 'j') ? 1
+            : (e.key === 'ArrowUp'   || e.key === 'k') ? -1 : 0;
+    if(!dir) return;
+    var ai = cards.findIndex(function(c){ return c.classList.contains('active'); });
+    var nx = Math.max(0, Math.min(cards.length - 1, (ai < 0 ? 0 : ai) + dir));
+    select(cards[nx].dataset.card); e.preventDefault();
+  });
+
+  // ── colour lens (per card; one active at a time) ──────────────────────────
+  function setLens(card, lens){
+    var dia = card.querySelector('.diagram');
+    dia.className = 'diagram';
+    card.querySelectorAll('.msg.lit').forEach(function(m){ m.classList.remove('lit'); });
+    card.querySelectorAll('.legend').forEach(function(l){ l.hidden = true; });
+    var lg;
+    if(lens === 'none'){ dia.classList.add('lens-none'); lg = card.querySelector('.lg-none'); }
+    else if(lens.indexOf('path-') === 0){
+      dia.classList.add('lens-path');
+      card.querySelectorAll('.msg.p-' + lens.slice(5)).forEach(function(m){ m.classList.add('lit'); });
+      lg = card.querySelector('.lg-' + lens);
+    }
+    else if(lens === 'cost'){ dia.classList.add('lens-cost'); lg = card.querySelector('.lg-cost'); }
+    else if(lens === 'lat'){ dia.classList.add('lens-lat'); lg = card.querySelector('.lg-lat'); }
+    if(lg) lg.hidden = false;
+    card.querySelectorAll('.lens').forEach(function(b){ b.classList.toggle('on', b.dataset.lens === lens); });
+  }
+
+  // ── in-browser PNG export — stitch header + body SVGs onto one canvas ──────
+  function svgImg(svg){
+    return new Promise(function(res){
+      var img = new Image();
+      img.onload = function(){ res(img); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' +
+                encodeURIComponent(new XMLSerializer().serializeToString(svg));
+    });
+  }
+  function exportPNG(card){
+    var hs = card.querySelector('.head svg'), bs = card.querySelector('.scroll svg');
+    var W = +hs.getAttribute('width'), HH = +hs.getAttribute('height'), BH = +bs.getAttribute('height');
+    var sc = 2, cv = document.createElement('canvas');
+    cv.width = W * sc; cv.height = (HH + BH) * sc;
+    var cx = cv.getContext('2d'); cx.scale(sc, sc);
+    Promise.all([svgImg(hs), svgImg(bs)]).then(function(imgs){
+      cx.drawImage(imgs[0], 0, 0);
+      cx.drawImage(imgs[1], 0, HH);
+      var a = document.createElement('a');
+      a.download = (card.dataset.card || 'diagram') + '.png';
+      a.href = cv.toDataURL('image/png'); a.click();
+    });
+  }
+
+  // ── wire each card (lenses, export, hover-dim) ─────────────────────────────
+  cards.forEach(function(card){
+    var pngBtn = card.querySelector('.png');
+    if(pngBtn) pngBtn.addEventListener('click', function(){ exportPNG(card); });
+    card.querySelectorAll('.lens').forEach(function(b){
+      b.addEventListener('click', function(){ setLens(card, b.dataset.lens); });
+    });
+    var dia = card.querySelector('.diagram');
+    dia.addEventListener('mouseover', function(e){
+      var g = e.target.closest('.msg'); if(g){ dia.classList.add('hov'); g.classList.add('hl'); }
+    });
+    dia.addEventListener('mouseout', function(e){
+      var g = e.target.closest('.msg');
+      if(g){ g.classList.remove('hl'); if(!dia.querySelector('.msg.hl')) dia.classList.remove('hov'); }
+    });
+  });
+
+  // ── click-a-message detail card ────────────────────────────────────────────
+  // Tiers: WHY headline · readable route/step/phase sub-line · guard · prose body
+  // (what-changes / on-failure) · fact chips (sends/auth/ordering/cost) · src+age footer.
+  // Header + footer are deterministic; the body shows only the AI `detail` keys present.
+  function row(label, val){
+    return '<div class="p-row"><span class="pl">' + esc(label) + '</span><span>' + esc(val) + '</span></div>';
+  }
+  function chip(val){ return '<span class="chip">' + esc(val) + '</span>'; }
+  function buildCard(g){
+    var d = g.dataset, h = '';
+    // headline = the WHY; with no detail, lead with the readable route (a normal arrow) or the
+    // label itself (self/note, where the label is the substance) — never repeat a normal arrow's label.
+    var contentLed = (d.type === 'note' || d.type === 'self');
+    var head = d.why || (contentLed ? d.full : d.route) || d.full || '(message)';
+    h += '<div class="p-why">' + esc(head) + '</div>';
+    var sub = [];
+    if(d.route && d.route !== head) sub.push(d.route);
+    if(d.step)  sub.push('step ' + d.step);
+    if(d.phase) sub.push(d.phase);
+    if(sub.length) h += '<div class="p-route">' + esc(sub.join('  ·  ')) + '</div>';
+    if(d.frag) h += '<div class="p-guard">⋔ ' + esc(d.frag) + '</div>';
+    var body = '';
+    if(d.effects) body += row('Changes', d.effects);
+    if(d.fails)   body += row('On fail', d.fails);
+    if(body) h += '<div class="p-body">' + body + '</div>';
+    var chips = '';
+    if(d.sends)    chips += chip(d.sends);
+    if(d.auth)     chips += chip(d.auth);
+    if(d.ordering) chips += chip(d.ordering);
+    if(d.metrics)  chips += chip(d.metrics);
+    if(chips) h += '<div class="p-chips">' + chips + '</div>';
+    var foot = [];
+    if(d.src) foot.push(d.src);
+    var card = g.closest('.card'), age = card && card.dataset.updated;
+    if(age) foot.push(age);                                   // research age → staleness + AI-derived signal
+    if(foot.length) h += '<div class="p-foot">' + esc(foot.join('  ·  ')) + '</div>';
+    return h;
+  }
+  document.addEventListener('click', function(e){
+    if(pop.contains(e.target)) return;                        // clicks INSIDE the card never dismiss it
+    var g = e.target.closest('.msg');
+    if(!g){ pop.hidden = true; return; }
+    pop.classList.remove('docked');
+    pop.innerHTML = buildCard(g);
+    pop.hidden = false;
+    pop.style.left = '0px'; pop.style.top = '0px';            // measure at a known origin
+    if(pop.offsetHeight > innerHeight - 24){                  // too tall to float → dock + scroll
+      pop.classList.add('docked'); return;
+    }
+    var x = Math.max(8, Math.min(e.clientX + 12, innerWidth - pop.offsetWidth - 8));
+    var y = Math.max(8, Math.min(e.clientY + 12, innerHeight - pop.offsetHeight - 8));
+    pop.style.left = x + 'px'; pop.style.top = y + 'px';
+  });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') pop.hidden = true; });
+})();
+</script>
+</body></html>

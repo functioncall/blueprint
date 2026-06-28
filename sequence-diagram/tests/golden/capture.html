@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Diagrams — sequence diagrams</title>
+<style>:root{ --accent:#B23A2E; --paper:#F3EEE1; --ink:#21201B; --soft:#6B6657;
+  --rule:#C6BDA3; --band:#EFE8D8; --bg:#E6DFCD; --grid:#211E1408;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace; }
+*{ box-sizing:border-box; }
+/* the PAGE never scrolls — only the diagram body does (no scroll from header/toolbar). */
+html,body{ margin:0; height:100%; overflow:hidden; overscroll-behavior:none; }
+body{ background:var(--bg); color:var(--ink); font-family:var(--mono);
+  -webkit-font-smoothing:antialiased; }
+
+/* fixed-viewport frame: a clean app header, then the diagram stage. Only .scroll scrolls. */
+.app{ height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+
+/* app header — ONE clean bar (no inner vertical dividers; only the bottom rule, which
+   aligns with the diagram grid below). brand · project / <scenario ▾> · count */
+.appbar{ flex:0 0 auto; display:flex; align-items:center; gap:16px; height:44px; padding:0 16px;
+  background:var(--band); border-bottom:1px solid var(--rule); }
+.brand{ display:flex; align-items:center; gap:7px; font-weight:700; font-size:13px; white-space:nowrap; }
+.brand .mark{ color:var(--accent); font-size:15px; }
+.crumb{ flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:9px; }
+.crumb-proj{ color:var(--soft); font-size:12.5px; white-space:nowrap; }
+.crumb-sep{ color:var(--rule); }
+.barmeta{ flex:0 0 auto; color:var(--soft); font-size:11px; white-space:nowrap; }
+
+/* scenario switcher — the active title IS a dropdown. No ancestor clips (so the menu can
+   escape downward); only the title text itself ellipsises. */
+.switch{ position:relative; min-width:0; flex:0 1 auto; display:flex; }
+.switch-btn{ display:inline-flex; align-items:center; gap:8px; min-width:0; max-width:100%; cursor:pointer;
+  font:inherit; background:none; border:0; padding:3px 7px; margin-left:-7px; border-radius:6px; color:var(--ink); }
+.switch-btn:hover{ background:#0000000d; }
+/* with 2+ scenarios the title IS a dropdown — make it an obvious pill CTA, and never truncate it */
+.app:not(.solo) .switch-btn{ background:var(--paper); border:1px solid var(--rule);
+  padding:4px 11px; margin-left:0; box-shadow:0 1px 2px #00000012; }
+.app:not(.solo) .switch-btn:hover{ border-color:var(--soft); background:#fff8; }
+.switch-title{ min-width:0; font-weight:700; font-size:13px; white-space:nowrap; }
+.switch-caret{ color:var(--ink); font-size:12px; line-height:1; }
+.app.solo .switch-btn{ cursor:default; }
+.app.solo .switch-btn:hover{ background:none; }
+.app.solo .switch-caret{ display:none; }
+.switch-menu{ position:absolute; top:calc(100% + 6px); left:-7px; z-index:40;
+  min-width:320px; max-width:460px; max-height:72vh; overflow:auto;
+  background:var(--paper); border:1px solid var(--rule); box-shadow:0 12px 32px -12px #0008; }
+.switch-menu[hidden]{ display:none; }
+.mitem{ display:block; width:100%; text-align:left; cursor:pointer; font:inherit; color:var(--ink);
+  background:none; border:0; border-bottom:1px solid var(--rule); border-left:3px solid transparent;
+  padding:9px 13px; }
+.mitem:last-child{ border-bottom:0; }
+.mitem:hover{ background:#0000000a; }
+.mitem.active{ border-left-color:var(--accent); background:#0000000f; }
+.mi-title{ display:block; font-size:12px; font-weight:700; }
+.mi-sub{ display:block; margin-top:2px; font-size:10.5px; color:var(--soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* stage — the one active scenario, full width + full height */
+.stage{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; background:var(--paper); }
+.card{ display:none; flex:1 1 auto; min-height:0; flex-direction:column; }
+.card.active{ display:flex; }
+
+/* pinned swimlane header above the scrolling body. The geometry is already full-bleed —
+   layout.py spreads the columns to fill FILL_W, so every scenario has the SAME natural width
+   regardless of column count. width:100% then maps that one width onto the viewport, so the
+   on-screen scale is identical across scenarios (no per-count inflation) and fills the width. */
+.head{ flex:0 0 auto; overflow:hidden; border-bottom:1px solid var(--rule); }
+.head svg{ display:block; width:100%; height:auto; }
+/* the ONLY scroll container; the engineering-paper grid tiles the whole area so the canvas
+   feel continues into any space below a short diagram (grid is texture, never load-bearing). */
+.scroll{ flex:1 1 auto; min-height:0; overflow:auto; overscroll-behavior:contain;
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px, transparent 1px),
+                   linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:23px 23px; }
+.diagram{ display:block; }
+.diagram svg{ display:block; width:100%; height:auto; }
+
+/* toolbar — bottom row of control cells (lens toggles, legend, export) */
+.toolbar{ flex:0 0 auto; display:flex; align-items:stretch; height:36px; overflow-x:auto;
+  border-top:1px solid var(--rule); background:var(--band); }
+.lenses{ display:flex; align-items:stretch; }
+.lens{ display:flex; align-items:center; white-space:nowrap; padding:0 13px;
+  border:0; border-right:1px solid var(--rule); background:none; font:inherit; font-size:11px;
+  cursor:pointer; color:var(--soft); }
+.lens:hover{ color:var(--ink); background:#0000000a; }
+.lens.on{ background:var(--ink); color:var(--paper); }
+.tb-right{ margin-left:auto; display:flex; align-items:stretch; }
+.legends{ display:flex; align-items:center; padding:0 14px; border-left:1px solid var(--rule); }
+.png{ display:flex; align-items:center; white-space:nowrap; padding:0 14px;
+  border:0; border-left:1px solid var(--rule); background:none; font:inherit; font-size:11px;
+  cursor:pointer; color:var(--ink); }
+.png:hover{ background:#0000000a; }
+.legend{ font-size:11px; color:var(--soft); display:flex; align-items:center; gap:7px; white-space:nowrap; }
+.legend[hidden]{ display:none!important; }
+.legend .sw{ width:11px; height:11px; border-radius:2px; display:inline-block; }
+.legend .ramp{ width:80px; height:9px; display:inline-block; border-radius:2px;
+  background:linear-gradient(90deg,#2FA05A,#9FB83C,#E6B12E,#E07B2A,#C0392B); }
+
+/* messages: entrance + interactive states */
+.msg{ animation:rise .5s ease both; animation-delay:var(--d); }
+@keyframes rise{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
+.msg .arrow.sync{ stroke-dasharray:var(--len); stroke-dashoffset:var(--len);
+  animation:draw .55s ease forwards; animation-delay:var(--d); }
+@keyframes draw{ to{ stroke-dashoffset:0 } }
+.msg{ cursor:pointer; }
+.mtx{ paint-order:stroke; }
+
+/* hover-dim */
+.diagram.hov .msg:not(.hl){ opacity:.16; }
+
+/* path lens */
+.lens-path .msg{ opacity:.16; transition:opacity .2s; }
+.msg.lit{ opacity:1!important; }
+.msg.lit .arrow{ stroke:var(--accent)!important; }
+.msg.lit .ah{ fill:var(--accent)!important; stroke:var(--accent)!important; }
+.msg.lit .mtx{ fill:var(--accent); }
+.msg.lit .tmark *{ stroke:var(--accent)!important; }
+
+/* metric lenses */
+.diagram.lens-cost .msg:not(.has-cost),
+.diagram.lens-lat .msg:not(.has-lat){ opacity:.14; }
+.diagram.lens-cost .msg.has-cost .arrow{ stroke:var(--c-cost)!important; stroke-width:3.4; }
+.diagram.lens-cost .msg.has-cost .ah{ fill:var(--c-cost)!important; stroke:var(--c-cost)!important; }
+.diagram.lens-lat .msg.has-lat .arrow{ stroke:var(--c-lat)!important; stroke-width:3.4; }
+.diagram.lens-lat .msg.has-lat .ah{ fill:var(--c-lat)!important; stroke:var(--c-lat)!important; }
+
+/* click-detail card — tiered: why headline · route sub-line · guard · prose · chips · footer */
+.popover{ position:fixed; z-index:50; max-width:340px; min-width:210px; background:var(--paper);
+  border:1px solid var(--ink); padding:11px 13px; font-size:11.5px; line-height:1.45;
+  box-shadow:0 10px 30px -8px #0008; }
+.popover[hidden]{ display:none; }
+.popover.docked{ left:auto!important; top:auto!important; right:14px; bottom:14px;
+  max-height:calc(100vh - 28px); overflow:auto; }
+.p-why{ font-weight:700; font-size:12.5px; margin-bottom:3px; }
+.p-route{ color:var(--soft); font-size:10.5px; }
+.p-guard{ color:var(--soft); font-size:10.5px; margin-top:3px; }
+.p-body{ display:flex; flex-direction:column; gap:4px; margin-top:8px; }
+.p-row{ display:flex; gap:8px; }
+.p-row .pl{ flex:0 0 44px; color:var(--soft); text-transform:uppercase;
+  font-size:9px; letter-spacing:.05em; padding-top:1px; }
+.p-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.p-chips .chip{ background:var(--band); border:1px solid var(--rule); border-radius:10px;
+  padding:1px 8px; font-size:10px; color:var(--ink); }
+.p-foot{ color:var(--soft); font-size:10px; margin-top:8px;
+  border-top:1px solid var(--rule); padding-top:6px; }
+
+@media (prefers-reduced-motion:reduce){
+  .msg, .msg .arrow.sync{ animation:none!important; stroke-dashoffset:0!important; opacity:1; }
+}
+</style>
+</head><body>
+<div class="app solo">
+  <header class="appbar">
+    <div class="brand"><span class="mark">#</span><span>Sequence Diagrams</span></div>
+    <div class="crumb">
+      <span class="crumb-proj">Diagrams</span>
+      <span class="crumb-sep">/</span>
+      <div class="switch">
+        <button class="switch-btn" id="switchBtn" aria-haspopup="true" aria-expanded="false">
+          <span class="switch-title" id="crumbTitle"></span>
+          <span class="switch-caret">▾</span>
+        </button>
+        <div class="switch-menu" id="switchMenu" hidden></div>
+      </div>
+    </div>
+    <div class="barmeta"><span id="barCount"></span></div>
+  </header>
+  <main class="stage"><section class="card active" data-card="capture" data-title="Press-and-hold capture with voice note" data-sub="still + narration → server STT → vision enrich → live result" data-updated="2026-06-27">
+  <div class="head"><svg class="seqhead" viewBox="0 0 1380 42" width="1380" height="42" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace"><rect x="0.0" y="0.0" width="30.0" height="42.0" rx="0" fill="#E6DECA" stroke="none" stroke-width="1.0"/><rect x="30.0" y="0.0" width="1350.0" height="42.0" rx="0" fill="#E7DEC8" stroke="none" stroke-width="1.0"/><line x1="30.0" y1="0.0" x2="30.0" y2="42.0" stroke="#B4AA8C" stroke-width="1.0"/><line x1="30.0" y1="23.0" x2="1380.0" y2="23.0" stroke="#C6BDA3" stroke-width="1.0"/><text x="105.0" y="11.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="12" fill="#807A71" text-anchor="middle" font-weight="700" dominant-baseline="middle">User</text><text x="105.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.0" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle">person</text><line x1="180.0" y1="0.0" x2="180.0" y2="42.0" stroke="#B4AA8C" stroke-width="1.1"/><text x="405.0" y="11.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="12" fill="#008B75" text-anchor="middle" font-weight="700" dominant-baseline="middle">Phone</text><text x="255.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.5" fill="#108C78" text-anchor="middle" font-weight="600" dominant-baseline="middle">Camera UI</text><line x1="330.0" y1="23.0" x2="330.0" y2="42.0" stroke="#B4AA8C" stroke-width="0.8"/><text x="405.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.5" fill="#007B68" text-anchor="middle" font-weight="600" dominant-baseline="middle">Narration</text><line x1="480.0" y1="23.0" x2="480.0" y2="42.0" stroke="#B4AA8C" stroke-width="0.8"/><text x="555.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.5" fill="#006A57" text-anchor="middle" font-weight="600" dominant-baseline="middle">Upload</text><line x1="630.0" y1="0.0" x2="630.0" y2="42.0" stroke="#B4AA8C" stroke-width="1.1"/><text x="705.0" y="11.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="12" fill="#0080AC" text-anchor="middle" font-weight="700" dominant-baseline="middle">Server</text><text x="705.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.0" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle">/capture/enrich</text><line x1="780.0" y1="0.0" x2="780.0" y2="42.0" stroke="#B4AA8C" stroke-width="1.1"/><text x="930.0" y="11.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="12" fill="#706BB5" text-anchor="middle" font-weight="700" dominant-baseline="middle">Firebase</text><text x="855.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.5" fill="#7370B3" text-anchor="middle" font-weight="600" dominant-baseline="middle">Storage</text><line x1="930.0" y1="23.0" x2="930.0" y2="42.0" stroke="#B4AA8C" stroke-width="0.8"/><text x="1005.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.5" fill="#534F8F" text-anchor="middle" font-weight="600" dominant-baseline="middle">Firestore</text><line x1="1080.0" y1="0.0" x2="1080.0" y2="42.0" stroke="#B4AA8C" stroke-width="1.1"/><text x="1155.0" y="11.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="12" fill="#A05A8C" text-anchor="middle" font-weight="700" dominant-baseline="middle">Whisper</text><text x="1155.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.0" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle">OpenAI whisper-1</text><line x1="1230.0" y1="0.0" x2="1230.0" y2="42.0" stroke="#B4AA8C" stroke-width="1.1"/><text x="1305.0" y="11.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="12" fill="#AE5B49" text-anchor="middle" font-weight="700" dominant-baseline="middle">Claude</text><text x="1305.0" y="32.5" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10.0" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle">Anthropic Haiku</text></svg></div>
+  <div class="scroll" style="background-image:url('data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20preserveAspectRatio=%27none%27%20viewBox=%270%200%201380%2010%27%3E%3Cline%20x1=%27105.0%27%20y1=%270%27%20x2=%27105.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%27255.0%27%20y1=%270%27%20x2=%27255.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%27405.0%27%20y1=%270%27%20x2=%27405.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%27555.0%27%20y1=%270%27%20x2=%27555.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%27705.0%27%20y1=%270%27%20x2=%27705.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%27855.0%27%20y1=%270%27%20x2=%27855.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%271005.0%27%20y1=%270%27%20x2=%271005.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%271155.0%27%20y1=%270%27%20x2=%271155.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3Cline%20x1=%271305.0%27%20y1=%270%27%20x2=%271305.0%27%20y2=%2710%27%20stroke=%27%23897D58%27%20stroke-width=%271.4%27%20stroke-dasharray=%271.5%203.5%27/%3E%3C/svg%3E'),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:100% 10px,23px 23px,23px 23px;background-repeat:repeat-y,repeat,repeat;"><div class="diagram lens-none"><svg class="seqbody" viewBox="0 42 1380 1106" width="1380" height="1106" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace"><defs><pattern id="grid-capture" width="23" height="23" patternUnits="userSpaceOnUse">
+           <path d="M 23 0 L 0 0 0 23" fill="none" stroke="#211E1408" stroke-width="1"/></pattern></defs><rect x="0.0" y="42.0" width="1380.0" height="1106.0" rx="0" fill="#F3EEE1" stroke="none" stroke-width="1.0"/><rect x="0.0" y="42.0" width="1380.0" height="1106.0" rx="0" fill="url(#grid-capture)" stroke="none" stroke-width="1.0"/><rect x="180.0" y="42.0" width="450.0" height="1106.0" rx="0" fill="#7B73560F" stroke="none" stroke-width="1.0"/><line x1="180.0" y1="42.0" x2="180.0" y2="1148.0" stroke="#B4AA8C" stroke-width="1.0"/><line x1="630.0" y1="42.0" x2="630.0" y2="1148.0" stroke="#B4AA8C" stroke-width="1.0"/><rect x="780.0" y="42.0" width="300.0" height="1106.0" rx="0" fill="#7B73560F" stroke="none" stroke-width="1.0"/><line x1="780.0" y1="42.0" x2="780.0" y2="1148.0" stroke="#B4AA8C" stroke-width="1.0"/><line x1="1080.0" y1="42.0" x2="1080.0" y2="1148.0" stroke="#B4AA8C" stroke-width="1.0"/><rect x="1230.0" y="42.0" width="150.0" height="1106.0" rx="0" fill="#7B73560F" stroke="none" stroke-width="1.0"/><line x1="1230.0" y1="42.0" x2="1230.0" y2="1148.0" stroke="#B4AA8C" stroke-width="1.0"/><line x1="105.0" y1="42.0" x2="105.0" y2="1148.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="255.0" y1="42.0" x2="255.0" y2="1148.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="405.0" y1="42.0" x2="405.0" y2="1148.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="555.0" y1="42.0" x2="555.0" y2="1148.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="705.0" y1="42.0" x2="705.0" y2="1148.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="855.0" y1="42.0" x2="855.0" y2="1148.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="1005.0" y1="42.0" x2="1005.0" y2="1148.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="1155.0" y1="42.0" x2="1155.0" y2="1148.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><line x1="1305.0" y1="42.0" x2="1305.0" y2="1148.0" stroke="#897D58" stroke-width="1.4" stroke-dasharray="1.5 3.5"/><rect x="0.0" y="42.0" width="30.0" height="1106.0" rx="0" fill="#E6DECA" stroke="none" stroke-width="1.0"/><line x1="30.0" y1="42.0" x2="30.0" y2="1148.0" stroke="#B4AA8C" stroke-width="1.0"/><text x="15.0" y="190.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#6B6657" text-anchor="middle" font-weight="700" dominant-baseline="middle" transform="rotate(-90 15.0 190.0)">CAPTURE</text><line x1="0.0" y1="338.0" x2="1380.0" y2="338.0" stroke="#9E9173" stroke-width="1.3"/><text x="15.0" y="427.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#6B6657" text-anchor="middle" font-weight="700" dominant-baseline="middle" transform="rotate(-90 15.0 427.0)">SAVE</text><line x1="0.0" y1="516.0" x2="1380.0" y2="516.0" stroke="#9E9173" stroke-width="1.3"/><text x="15.0" y="832.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#6B6657" text-anchor="middle" font-weight="700" dominant-baseline="middle" transform="rotate(-90 15.0 832.0)">ENRICH</text><rect x="689.0" y="612.0" width="482.0" height="208.0" rx="3" fill="none" stroke="#8A7E5C" stroke-width="1.3" stroke-dasharray="6 4" class="frame"/><rect x="689.0" y="612.0" width="32.1" height="15.0" rx="2" fill="#E2D9C0" stroke="#8A7E5C" stroke-width="1.2"/><text x="705.1" y="620.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10" fill="#8A7E5C" text-anchor="middle" font-weight="700" dominant-baseline="middle">opt</text><text x="728.1" y="620.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="10" fill="#8A7E5C" text-anchor="start" font-weight="400" dominant-baseline="middle">[voice note present]</text><rect x="252.0" y="112.0" width="6.0" height="22.0" rx="1.5" fill="#14B49A" stroke="#0E826F" stroke-width="0.8" class="bar"/><rect x="402.0" y="188.0" width="6.0" height="22.0" rx="1.5" fill="#009E85" stroke="#007260" stroke-width="0.8" class="bar"/><rect x="402.0" y="230.0" width="6.0" height="38.0" rx="1.5" fill="#009E85" stroke="#007260" stroke-width="0.8" class="bar"/><rect x="252.0" y="78.0" width="6.0" height="228.0" rx="1.5" fill="#14B49A" stroke="#0E826F" stroke-width="0.8" class="bar"/><rect x="702.0" y="582.0" width="6.0" height="22.0" rx="1.5" fill="#0092C3" stroke="#00698C" stroke-width="0.8" class="bar"/><rect x="852.0" y="644.0" width="6.0" height="38.0" rx="1.5" fill="#948FE5" stroke="#6B67A5" stroke-width="0.8" class="bar"/><rect x="1152.0" y="720.0" width="6.0" height="38.0" rx="1.5" fill="#B6669F" stroke="#834972" stroke-width="0.8" class="bar"/><rect x="702.0" y="792.0" width="6.0" height="22.0" rx="1.5" fill="#0092C3" stroke="#00698C" stroke-width="0.8" class="bar"/><rect x="852.0" y="834.0" width="6.0" height="38.0" rx="1.5" fill="#948FE5" stroke="#6B67A5" stroke-width="0.8" class="bar"/><rect x="1302.0" y="910.0" width="6.0" height="38.0" rx="1.5" fill="#C66753" stroke="#8F4A3C" stroke-width="0.8" class="bar"/><rect x="252.0" y="1062.0" width="6.0" height="38.0" rx="1.5" fill="#14B49A" stroke="#0E826F" stroke-width="0.8" class="bar"/><rect x="252.0" y="370.0" width="6.0" height="18.0" rx="1.5" fill="#14B49A" stroke="#0E826F" stroke-width="0.8" class="bar"/><rect x="402.0" y="154.0" width="6.0" height="18.0" rx="1.5" fill="#009E85" stroke="#007260" stroke-width="0.8" class="bar"/><rect x="552.0" y="408.0" width="6.0" height="18.0" rx="1.5" fill="#008870" stroke="#006251" stroke-width="0.8" class="bar"/><rect x="852.0" y="446.0" width="6.0" height="18.0" rx="1.5" fill="#948FE5" stroke="#6B67A5" stroke-width="0.8" class="bar"/><rect x="1002.0" y="484.0" width="6.0" height="18.0" rx="1.5" fill="#6B65B7" stroke="#4D4984" stroke-width="0.8" class="bar"/><rect x="1002.0" y="986.0" width="6.0" height="18.0" rx="1.5" fill="#6B65B7" stroke="#4D4984" stroke-width="0.8" class="bar"/><rect x="702.0" y="548.0" width="6.0" height="18.0" rx="1.5" fill="#0092C3" stroke="#00698C" stroke-width="0.8" class="bar"/><g class="msg p-capture" style="--d:0.000s" data-full="press &amp; hold" data-route="User → Phone / Camera UI" data-phase="CAPTURE" data-step="1/26"><title>press &amp; hold</title><line class="arrow sync" x1="105.0" y1="78" x2="252.0" y2="78" stroke="#21201B" stroke-width="1.4" style="--len:147.0"/><path d="M252.0,78.0 L244.0,74.0 L244.0,82.0 Z" fill="#21201B" class="ah"/><text x="180.0" y="70.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">press &amp; hold</text></g><g class="msg" style="--d:0.028s" data-full="freeze still" data-type="self" data-route="Phone / Camera UI · self" data-phase="CAPTURE" data-step="2/26"><title>freeze still</title><path class="arrow self" d="M258.0,116 h20 v14 h-20" fill="none" stroke="#21201B" stroke-width="1.4"/><path d="M258.0,130.0 L266.0,126.0 L266.0,134.0 Z" fill="#21201B" class="ah"/><text x="286.0" y="118.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="start" font-weight="400" dominant-baseline="middle" class="mtx">freeze still</text><text x="286.0" y="130.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="start" font-weight="400" dominant-baseline="middle" class="mtx mcap">→ base64 JPEG</text></g><g class="msg p-capture" style="--d:0.056s" data-full="start narration" data-route="Phone / Camera UI → Phone / Narration" data-phase="CAPTURE" data-step="3/26"><title>start narration</title><line class="arrow sync" x1="258.0" y1="154" x2="402.0" y2="154" stroke="#21201B" stroke-width="1.4" style="--len:144.0"/><path d="M402.0,154.0 L394.0,150.0 L394.0,158.0 Z" fill="#21201B" class="ah"/><text x="330.0" y="146.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">start narration</text><text x="330.0" y="162.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">mic permission</text></g><g class="msg" style="--d:0.084s" data-full="record mic" data-type="self" data-route="Phone / Narration · self" data-phase="CAPTURE" data-step="4/26"><title>record mic</title><path class="arrow self" d="M408.0,192 h20 v14 h-20" fill="none" stroke="#21201B" stroke-width="1.4"/><path d="M408.0,206.0 L416.0,202.0 L416.0,210.0 Z" fill="#21201B" class="ah"/><text x="436.0" y="194.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="start" font-weight="400" dominant-baseline="middle" class="mtx">record mic</text><text x="436.0" y="206.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="start" font-weight="400" dominant-baseline="middle" class="mtx mcap">AAC m4a, 60s cap</text></g><g class="msg" style="--d:0.112s" data-full="release finger" data-route="User → Phone / Narration" data-phase="CAPTURE" data-step="5/26"><title>release finger</title><line class="arrow sync" x1="105.0" y1="230" x2="402.0" y2="230" stroke="#21201B" stroke-width="1.4" style="--len:297.0"/><path d="M402.0,230.0 L394.0,226.0 L394.0,234.0 Z" fill="#21201B" class="ah"/><text x="255.0" y="222.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">release finger</text></g><g class="msg" style="--d:0.140s" data-full="audio + speech flag" data-route="Phone / Narration → Phone / Camera UI" data-phase="CAPTURE" data-step="6/26"><title>audio + speech flag</title><line class="arrow ret" x1="402.0" y1="268" x2="258.0" y2="268" stroke="#21201B" stroke-width="1.4" stroke-dasharray="5 4" style="--len:144.0"/><path d="M266.0,264.0 L258.0,268.0 L266.0,272.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><text x="330.0" y="260.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">audio + speech flag</text></g><g class="msg" style="--d:0.168s" data-full="show Save view" data-route="Phone / Camera UI → User" data-phase="CAPTURE" data-step="7/26"><title>show Save view</title><line class="arrow ret" x1="252.0" y1="306" x2="105.0" y2="306" stroke="#21201B" stroke-width="1.4" stroke-dasharray="5 4" style="--len:147.0"/><path d="M113.0,302.0 L105.0,306.0 L113.0,310.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><text x="180.0" y="298.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">show Save view</text><text x="180.0" y="314.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">still + audiogram</text></g><g class="msg p-capture" style="--d:0.196s" data-full="tap SAVE" data-route="User → Phone / Camera UI" data-phase="SAVE" data-step="8/26"><title>tap SAVE</title><line class="arrow sync" x1="105.0" y1="370" x2="252.0" y2="370" stroke="#21201B" stroke-width="1.4" style="--len:147.0"/><path d="M252.0,370.0 L244.0,366.0 L244.0,374.0 Z" fill="#21201B" class="ah"/><text x="180.0" y="362.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">tap SAVE</text></g><g class="msg p-capture" style="--d:0.224s" data-full="accept()" data-route="Phone / Camera UI → Phone / Upload" data-phase="SAVE" data-step="9/26"><title>accept()</title><line class="arrow sync" x1="255.0" y1="408" x2="552.0" y2="408" stroke="#21201B" stroke-width="1.4" style="--len:297.0"/><path d="M552.0,408.0 L544.0,404.0 L544.0,412.0 Z" fill="#21201B" class="ah"/><text x="405.0" y="400.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">accept()</text><text x="405.0" y="416.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">still + audio</text></g><g class="msg p-capture" style="--d:0.252s" data-full="upload blobs" data-route="Phone / Upload → Firebase / Storage" data-phase="SAVE" data-step="10/26" data-src="CaptureUploadService.swift"><title>upload blobs</title><line class="arrow sync" x1="555.0" y1="446" x2="852.0" y2="446" stroke="#21201B" stroke-width="1.4" style="--len:297.0"/><path d="M852.0,446.0 L844.0,442.0 L844.0,450.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M659.1,435.3 V440.4 A3.4,1.4 0 0 0 665.9,440.4 V435.3" fill="none" stroke="#6B6657" stroke-width="1.1"/><ellipse cx="662.5" cy="435.3" rx="3.4" ry="1.4" fill="none" stroke="#6B6657" stroke-width="1.1"/></g><text x="705.0" y="438.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">upload blobs</text><text x="705.0" y="454.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">still + audio</text></g><g class="msg" style="--d:0.280s" data-full="write source" data-route="Phone / Upload → Firebase / Firestore" data-phase="SAVE" data-step="11/26"><title>write source</title><line class="arrow sync" x1="555.0" y1="484" x2="1002.0" y2="484" stroke="#21201B" stroke-width="1.4" style="--len:447.0"/><path d="M1002.0,484.0 L994.0,480.0 L994.0,488.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M734.1,473.3 V478.4 A3.4,1.4 0 0 0 740.9,478.4 V473.3" fill="none" stroke="#6B6657" stroke-width="1.1"/><ellipse cx="737.5" cy="473.3" rx="3.4" ry="1.4" fill="none" stroke="#6B6657" stroke-width="1.1"/></g><text x="780.0" y="476.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">write source</text><text x="780.0" y="492.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">status: uploading</text></g><g class="msg p-capture p-enrich" style="--d:0.308s" data-full="POST /capture/enrich" data-route="Phone / Upload → Server" data-phase="ENRICH" data-step="12/26" data-src="EnrichClient.swift → capture.routes.ts"><title>POST /capture/enrich</title><line class="arrow sync" x1="555.0" y1="548" x2="702.0" y2="548" stroke="#21201B" stroke-width="1.4" style="--len:147.0"/><path d="M702.0,548.0 L694.0,544.0 L694.0,552.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M561.1,536.6 L563.5,540.0 L561.1,543.4" fill="none" stroke="#6B6657" stroke-width="1.2"/><path d="M565.5,536.6 L568.9,540.0 L565.5,543.4" fill="none" stroke="#6B6657" stroke-width="1.2"/></g><text x="630.0" y="540.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">POST /capture/enrich</text><text x="630.0" y="556.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">+ ID token</text></g><g class="msg" style="--d:0.336s" data-full="check quota" data-type="self" data-route="Server · self" data-phase="ENRICH" data-step="13/26"><title>check quota</title><path class="arrow self" d="M708.0,586 h20 v14 h-20" fill="none" stroke="#21201B" stroke-width="1.4"/><path d="M708.0,600.0 L716.0,596.0 L716.0,604.0 Z" fill="#21201B" class="ah"/><text x="736.0" y="588.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="start" font-weight="400" dominant-baseline="middle" class="mtx">check quota</text><text x="736.0" y="600.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="start" font-weight="400" dominant-baseline="middle" class="mtx mcap">reserve cap</text></g><g class="msg" style="--d:0.364s" data-full="read audio" data-route="Server → Firebase / Storage" data-phase="ENRICH" data-frag="opt · voice note present" data-step="14/26"><title>read audio</title><line class="arrow sync" x1="705.0" y1="644" x2="852.0" y2="644" stroke="#21201B" stroke-width="1.4" style="--len:147.0"/><path d="M852.0,644.0 L844.0,640.0 L844.0,648.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M739.9,633.3 V638.4 A3.4,1.4 0 0 0 746.7,638.4 V633.3" fill="none" stroke="#6B6657" stroke-width="1.1"/><ellipse cx="743.3" cy="633.3" rx="3.4" ry="1.4" fill="none" stroke="#6B6657" stroke-width="1.1"/></g><text x="780.0" y="636.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">read audio</text></g><g class="msg" style="--d:0.392s" data-full="m4a bytes" data-route="Firebase / Storage → Server" data-phase="ENRICH" data-frag="opt · voice note present" data-step="15/26"><title>m4a bytes</title><line class="arrow ret" x1="852.0" y1="682" x2="705.0" y2="682" stroke="#21201B" stroke-width="1.4" stroke-dasharray="5 4" style="--len:147.0"/><path d="M713.0,678.0 L705.0,682.0 L713.0,686.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><text x="780.0" y="674.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">m4a bytes</text></g><g class="msg p-enrich has-cost has-lat" style="--d:0.420s;--c-cost:#2FA05A;--c-lat:#C0392B" data-full="transcribe" data-route="Server → Whisper" data-phase="ENRICH" data-frag="opt · voice note present" data-step="16/26" data-src="openai-stt.client.ts" data-metrics="$0.006 · 1400ms"><title>transcribe</title><line class="arrow sync" x1="705.0" y1="720" x2="1152.0" y2="720" stroke="#21201B" stroke-width="1.4" style="--len:447.0"/><path d="M1152.0,720.0 L1144.0,716.0 L1144.0,724.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M889.9,708.6 L892.3,712.0 L889.9,715.4" fill="none" stroke="#6B6657" stroke-width="1.2"/><path d="M894.3,708.6 L897.7,712.0 L894.3,715.4" fill="none" stroke="#6B6657" stroke-width="1.2"/></g><text x="930.0" y="712.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">transcribe</text><text x="930.0" y="728.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">whisper-1</text></g><g class="msg has-cost has-lat" style="--d:0.420s;--c-cost:#2FA05A;--c-lat:#C0392B" data-full="transcript" data-route="Whisper → Server" data-phase="ENRICH" data-frag="opt · voice note present" data-step="17/26" data-metrics="$0.006 · 1400ms"><title>transcript</title><line class="arrow ret" x1="1152.0" y1="758" x2="705.0" y2="758" stroke="#21201B" stroke-width="1.4" stroke-dasharray="5 4" style="--len:447.0"/><path d="M713.0,754.0 L705.0,758.0 L713.0,762.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><text x="930.0" y="750.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">transcript</text></g><g class="msg" style="--d:0.420s" data-full="save narration" data-type="self" data-route="Server · self" data-phase="ENRICH" data-frag="opt · voice note present" data-step="18/26"><title>save narration</title><path class="arrow self" d="M708.0,796 h20 v14 h-20" fill="none" stroke="#21201B" stroke-width="1.4"/><path d="M708.0,810.0 L716.0,806.0 L716.0,814.0 Z" fill="#21201B" class="ah"/><text x="736.0" y="798.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="start" font-weight="400" dominant-baseline="middle" class="mtx">save narration</text><text x="736.0" y="810.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="start" font-weight="400" dominant-baseline="middle" class="mtx mcap">delete audio</text></g><g class="msg" style="--d:0.420s" data-full="read still" data-route="Server → Firebase / Storage" data-phase="ENRICH" data-step="19/26"><title>read still</title><line class="arrow sync" x1="705.0" y1="834" x2="852.0" y2="834" stroke="#21201B" stroke-width="1.4" style="--len:147.0"/><path d="M852.0,834.0 L844.0,830.0 L844.0,838.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M739.9,823.3 V828.4 A3.4,1.4 0 0 0 746.7,828.4 V823.3" fill="none" stroke="#6B6657" stroke-width="1.1"/><ellipse cx="743.3" cy="823.3" rx="3.4" ry="1.4" fill="none" stroke="#6B6657" stroke-width="1.1"/></g><text x="780.0" y="826.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">read still</text></g><g class="msg" style="--d:0.420s" data-full="JPEG bytes" data-route="Firebase / Storage → Server" data-phase="ENRICH" data-step="20/26"><title>JPEG bytes</title><line class="arrow ret" x1="852.0" y1="872" x2="705.0" y2="872" stroke="#21201B" stroke-width="1.4" stroke-dasharray="5 4" style="--len:147.0"/><path d="M713.0,868.0 L705.0,872.0 L713.0,876.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><text x="780.0" y="864.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">JPEG bytes</text></g><g class="msg p-enrich has-cost has-lat" style="--d:0.420s;--c-cost:#C0392B;--c-lat:#2FA05A" data-full="vision" data-route="Server → Claude" data-phase="ENRICH" data-step="21/26" data-src="claude-vision-enricher.ts" data-metrics="$0.011 · 900ms"><title>vision</title><line class="arrow sync" x1="705.0" y1="910" x2="1302.0" y2="910" stroke="#21201B" stroke-width="1.4" style="--len:597.0"/><path d="M1302.0,910.0 L1294.0,906.0 L1294.0,914.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M976.4,898.6 L978.8,902.0 L976.4,905.4" fill="none" stroke="#6B6657" stroke-width="1.2"/><path d="M980.8,898.6 L984.2,902.0 L980.8,905.4" fill="none" stroke="#6B6657" stroke-width="1.2"/></g><text x="1005.0" y="902.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">vision</text><text x="1005.0" y="918.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">narration + image</text></g><g class="msg has-cost has-lat" style="--d:0.420s;--c-cost:#C0392B;--c-lat:#2FA05A" data-full="enrichment" data-route="Claude → Server" data-phase="ENRICH" data-step="22/26" data-metrics="$0.011 · 900ms"><title>enrichment</title><line class="arrow ret" x1="1302.0" y1="948" x2="705.0" y2="948" stroke="#21201B" stroke-width="1.4" stroke-dasharray="5 4" style="--len:597.0"/><path d="M713.0,944.0 L705.0,948.0 L713.0,952.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><text x="1005.0" y="940.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">enrichment</text><text x="1005.0" y="956.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">title, blurb, category, OCR</text></g><g class="msg p-enrich" style="--d:0.420s" data-full="write enrichment" data-route="Server → Firebase / Firestore" data-phase="ENRICH" data-step="23/26"><title>write enrichment</title><line class="arrow sync" x1="705.0" y1="986" x2="1002.0" y2="986" stroke="#21201B" stroke-width="1.4" style="--len:297.0"/><path d="M1002.0,986.0 L994.0,982.0 L994.0,990.0 Z" fill="#21201B" class="ah"/><g class="tmark"><path d="M797.6,975.3 V980.4 A3.4,1.4 0 0 0 804.4,980.4 V975.3" fill="none" stroke="#6B6657" stroke-width="1.1"/><ellipse cx="801.0" cy="975.3" rx="3.4" ry="1.4" fill="none" stroke="#6B6657" stroke-width="1.1"/></g><text x="855.0" y="978.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">write enrichment</text><text x="855.0" y="994.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">status: ready</text></g><g class="msg" style="--d:0.420s" data-full="wiki compile" data-type="note" data-route="Server · note" data-phase="ENRICH" data-step="24/26" data-src="enqueued, batched → Claude"><title>wiki compile</title><g class="tmark"><path d="M719.0,1019.5 h5.0 l3,3 v6.0 h-8.0 Z" fill="none" stroke="#6B6657" stroke-width="1.1"/><path d="M724.0,1019.5 v3 h3" fill="none" stroke="#6B6657" stroke-width="1.1"/></g><text x="731.0" y="1024.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#6B6657" text-anchor="start" font-weight="400" dominant-baseline="middle" class="mtx mcap">wiki compile</text></g><g class="msg" style="--d:0.420s" data-full="source ready" data-route="Firebase / Firestore → Phone / Camera UI" data-phase="ENRICH" data-step="25/26"><title>source ready</title><line class="arrow sync" x1="1005.0" y1="1062" x2="258.0" y2="1062" stroke="#21201B" stroke-width="1.4" style="--len:747.0"/><path d="M266.0,1058.0 L258.0,1062.0 L266.0,1066.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><g class="tmark"><path d="M584.1,1051.3 V1056.4 A3.4,1.4 0 0 0 590.9,1056.4 V1051.3" fill="none" stroke="#6B6657" stroke-width="1.1"/><ellipse cx="587.5" cy="1051.3" rx="3.4" ry="1.4" fill="none" stroke="#6B6657" stroke-width="1.1"/></g><text x="630.0" y="1054.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">source ready</text><text x="630.0" y="1070.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">Firestore listener</text></g><g class="msg p-capture" style="--d:0.420s" data-full="show result" data-route="Phone / Camera UI → User" data-phase="ENRICH" data-step="26/26"><title>show result</title><line class="arrow ret" x1="252.0" y1="1100" x2="105.0" y2="1100" stroke="#21201B" stroke-width="1.4" stroke-dasharray="5 4" style="--len:147.0"/><path d="M113.0,1096.0 L105.0,1100.0 L113.0,1104.0" fill="none" stroke="#21201B" stroke-width="1.3" class="ah"/><text x="180.0" y="1092.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="9.5" fill="#21201B" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx">show result</text><text x="180.0" y="1108.0" font-family="'JetBrains Mono','SF Mono',ui-monospace,'Menlo','DejaVu Sans Mono',monospace" font-size="8.5" fill="#6B6657" text-anchor="middle" font-weight="400" dominant-baseline="middle" class="mtx mcap">ItemHero</text></g></svg></div></div>
+  <div class="toolbar">
+    <div class="lenses"><button class="lens on" data-lens="none">Neutral</button><button class="lens" data-lens="path-capture">↪ capture</button><button class="lens" data-lens="path-enrich">↪ enrich</button><button class="lens" data-lens="cost">$ cost</button><button class="lens" data-lens="lat">⏱ latency</button></div>
+    <div class="tb-right"><div class="legends"><div class="legend lg-none">solid&nbsp;→&nbsp;call &nbsp;·&nbsp; dashed&nbsp;→&nbsp;return &nbsp;·&nbsp; open&nbsp;tip&nbsp;→&nbsp;async &nbsp;·&nbsp; <svg width="14" height="11" style="vertical-align:-2px"><g class="tmark"><path d="M3.6,2.1 L6.0,5.5 L3.6,8.9" fill="none" stroke="#6B6657" stroke-width="1.2"/><path d="M8.0,2.1 L11.4,5.5 L8.0,8.9" fill="none" stroke="#6B6657" stroke-width="1.2"/></g></svg>&nbsp;other&nbsp;service &nbsp;·&nbsp; <svg width="14" height="11" style="vertical-align:-2px"><g class="tmark"><path d="M3.6,2.8 V7.9 A3.4,1.4 0 0 0 10.4,7.9 V2.8" fill="none" stroke="#6B6657" stroke-width="1.1"/><ellipse cx="7.0" cy="2.8" rx="3.4" ry="1.4" fill="none" stroke="#6B6657" stroke-width="1.1"/></g></svg>&nbsp;data&nbsp;store &nbsp;·&nbsp; ▭&nbsp;active &nbsp;·&nbsp; click&nbsp;a&nbsp;row&nbsp;for&nbsp;detail</div><div class="legend lg-path-capture" hidden><span class="sw" style="background:#B23A2E"></span> path “capture” lit; rest dimmed</div><div class="legend lg-path-enrich" hidden><span class="sw" style="background:#B23A2E"></span> path “enrich” lit; rest dimmed</div><div class="legend lg-cost" hidden>cost <span class="ramp"></span> $0.006–$0.011 (low→high)</div><div class="legend lg-lat" hidden>latency <span class="ramp"></span> 900–1400 ms</div></div><button class="png">⤓ PNG</button></div>
+  </div>
+</section></main>
+</div>
+<div id="pop" class="popover" hidden></div>
+<script>(function(){
+  "use strict";
+  var pop = document.getElementById('pop');
+  function esc(s){ return (s||'').replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  // ── scenario switcher (dropdown in the header) ──────────────────────────────
+  var cards     = Array.prototype.slice.call(document.querySelectorAll('.card'));
+  var mitems    = Array.prototype.slice.call(document.querySelectorAll('.mitem'));
+  var menu      = document.getElementById('switchMenu');
+  var switchBtn = document.getElementById('switchBtn');
+  var crumbTitle= document.getElementById('crumbTitle');
+  var barCount  = document.getElementById('barCount');
+
+  function closeMenu(){ if(menu){ menu.hidden = true; } if(switchBtn){ switchBtn.setAttribute('aria-expanded','false'); } }
+  function select(sid){
+    var card = null;
+    cards.forEach(function(c){ var on = c.dataset.card === sid; c.classList.toggle('active', on); if(on) card = c; });
+    mitems.forEach(function(m){ m.classList.toggle('active', m.dataset.target === sid); });
+    if(card && crumbTitle) crumbTitle.textContent = card.dataset.title || '';
+    closeMenu(); pop.hidden = true;
+  }
+  mitems.forEach(function(m){
+    m.addEventListener('click', function(e){ e.stopPropagation(); select(m.dataset.target); });
+  });
+
+  if(barCount) barCount.textContent = cards.length + (cards.length === 1 ? ' scenario' : ' scenarios');
+  var act = document.querySelector('.card.active') || cards[0];
+  if(act) select(act.dataset.card);
+
+  // open/close the dropdown
+  if(switchBtn && menu && mitems.length){
+    switchBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var open = menu.hidden;
+      menu.hidden = !open;
+      switchBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeMenu(); });
+  }
+
+  // keyboard: ↑/↓ or j/k to cycle scenarios
+  document.addEventListener('keydown', function(e){
+    if(cards.length < 2) return;
+    if(e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    var dir = (e.key === 'ArrowDown' || e.key === 'j') ? 1
+            : (e.key === 'ArrowUp'   || e.key === 'k') ? -1 : 0;
+    if(!dir) return;
+    var ai = cards.findIndex(function(c){ return c.classList.contains('active'); });
+    var nx = Math.max(0, Math.min(cards.length - 1, (ai < 0 ? 0 : ai) + dir));
+    select(cards[nx].dataset.card); e.preventDefault();
+  });
+
+  // ── colour lens (per card; one active at a time) ──────────────────────────
+  function setLens(card, lens){
+    var dia = card.querySelector('.diagram');
+    dia.className = 'diagram';
+    card.querySelectorAll('.msg.lit').forEach(function(m){ m.classList.remove('lit'); });
+    card.querySelectorAll('.legend').forEach(function(l){ l.hidden = true; });
+    var lg;
+    if(lens === 'none'){ dia.classList.add('lens-none'); lg = card.querySelector('.lg-none'); }
+    else if(lens.indexOf('path-') === 0){
+      dia.classList.add('lens-path');
+      card.querySelectorAll('.msg.p-' + lens.slice(5)).forEach(function(m){ m.classList.add('lit'); });
+      lg = card.querySelector('.lg-' + lens);
+    }
+    else if(lens === 'cost'){ dia.classList.add('lens-cost'); lg = card.querySelector('.lg-cost'); }
+    else if(lens === 'lat'){ dia.classList.add('lens-lat'); lg = card.querySelector('.lg-lat'); }
+    if(lg) lg.hidden = false;
+    card.querySelectorAll('.lens').forEach(function(b){ b.classList.toggle('on', b.dataset.lens === lens); });
+  }
+
+  // ── in-browser PNG export — stitch header + body SVGs onto one canvas ──────
+  function svgImg(svg){
+    return new Promise(function(res){
+      var img = new Image();
+      img.onload = function(){ res(img); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' +
+                encodeURIComponent(new XMLSerializer().serializeToString(svg));
+    });
+  }
+  function exportPNG(card){
+    var hs = card.querySelector('.head svg'), bs = card.querySelector('.scroll svg');
+    var W = +hs.getAttribute('width'), HH = +hs.getAttribute('height'), BH = +bs.getAttribute('height');
+    var sc = 2, cv = document.createElement('canvas');
+    cv.width = W * sc; cv.height = (HH + BH) * sc;
+    var cx = cv.getContext('2d'); cx.scale(sc, sc);
+    Promise.all([svgImg(hs), svgImg(bs)]).then(function(imgs){
+      cx.drawImage(imgs[0], 0, 0);
+      cx.drawImage(imgs[1], 0, HH);
+      var a = document.createElement('a');
+      a.download = (card.dataset.card || 'diagram') + '.png';
+      a.href = cv.toDataURL('image/png'); a.click();
+    });
+  }
+
+  // ── wire each card (lenses, export, hover-dim) ─────────────────────────────
+  cards.forEach(function(card){
+    var pngBtn = card.querySelector('.png');
+    if(pngBtn) pngBtn.addEventListener('click', function(){ exportPNG(card); });
+    card.querySelectorAll('.lens').forEach(function(b){
+      b.addEventListener('click', function(){ setLens(card, b.dataset.lens); });
+    });
+    var dia = card.querySelector('.diagram');
+    dia.addEventListener('mouseover', function(e){
+      var g = e.target.closest('.msg'); if(g){ dia.classList.add('hov'); g.classList.add('hl'); }
+    });
+    dia.addEventListener('mouseout', function(e){
+      var g = e.target.closest('.msg');
+      if(g){ g.classList.remove('hl'); if(!dia.querySelector('.msg.hl')) dia.classList.remove('hov'); }
+    });
+  });
+
+  // ── click-a-message detail card ────────────────────────────────────────────
+  // Tiers: WHY headline · readable route/step/phase sub-line · guard · prose body
+  // (what-changes / on-failure) · fact chips (sends/auth/ordering/cost) · src+age footer.
+  // Header + footer are deterministic; the body shows only the AI `detail` keys present.
+  function row(label, val){
+    return '<div class="p-row"><span class="pl">' + esc(label) + '</span><span>' + esc(val) + '</span></div>';
+  }
+  function chip(val){ return '<span class="chip">' + esc(val) + '</span>'; }
+  function buildCard(g){
+    var d = g.dataset, h = '';
+    // headline = the WHY; with no detail, lead with the readable route (a normal arrow) or the
+    // label itself (self/note, where the label is the substance) — never repeat a normal arrow's label.
+    var contentLed = (d.type === 'note' || d.type === 'self');
+    var head = d.why || (contentLed ? d.full : d.route) || d.full || '(message)';
+    h += '<div class="p-why">' + esc(head) + '</div>';
+    var sub = [];
+    if(d.route && d.route !== head) sub.push(d.route);
+    if(d.step)  sub.push('step ' + d.step);
+    if(d.phase) sub.push(d.phase);
+    if(sub.length) h += '<div class="p-route">' + esc(sub.join('  ·  ')) + '</div>';
+    if(d.frag) h += '<div class="p-guard">⋔ ' + esc(d.frag) + '</div>';
+    var body = '';
+    if(d.effects) body += row('Changes', d.effects);
+    if(d.fails)   body += row('On fail', d.fails);
+    if(body) h += '<div class="p-body">' + body + '</div>';
+    var chips = '';
+    if(d.sends)    chips += chip(d.sends);
+    if(d.auth)     chips += chip(d.auth);
+    if(d.ordering) chips += chip(d.ordering);
+    if(d.metrics)  chips += chip(d.metrics);
+    if(chips) h += '<div class="p-chips">' + chips + '</div>';
+    var foot = [];
+    if(d.src) foot.push(d.src);
+    var card = g.closest('.card'), age = card && card.dataset.updated;
+    if(age) foot.push(age);                                   // research age → staleness + AI-derived signal
+    if(foot.length) h += '<div class="p-foot">' + esc(foot.join('  ·  ')) + '</div>';
+    return h;
+  }
+  document.addEventListener('click', function(e){
+    if(pop.contains(e.target)) return;                        // clicks INSIDE the card never dismiss it
+    var g = e.target.closest('.msg');
+    if(!g){ pop.hidden = true; return; }
+    pop.classList.remove('docked');
+    pop.innerHTML = buildCard(g);
+    pop.hidden = false;
+    pop.style.left = '0px'; pop.style.top = '0px';            // measure at a known origin
+    if(pop.offsetHeight > innerHeight - 24){                  // too tall to float → dock + scroll
+      pop.classList.add('docked'); return;
+    }
+    var x = Math.max(8, Math.min(e.clientX + 12, innerWidth - pop.offsetWidth - 8));
+    var y = Math.max(8, Math.min(e.clientY + 12, innerHeight - pop.offsetHeight - 8));
+    pop.style.left = x + 'px'; pop.style.top = y + 'px';
+  });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') pop.hidden = true; });
+})();
+</script>
+</body></html>
