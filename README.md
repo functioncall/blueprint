@@ -40,7 +40,7 @@ The first run does the real research. After that it stays cheap, because it only
 
 **One file, every flow.** A whole product lives in one place. Switch between scenarios from a dropdown, with the same lanes and colours each time.
 
-<img src="docs/img/feat-scenarios.png" width="800" alt="Scenario dropdown listing 13 flows in one file">
+<img src="docs/img/feat-scenarios.png" width="440" alt="Scenario dropdown listing 13 flows in one file">
 
 **Colour lenses.** Light up one path from start to finish, or shade the arrows by cost or latency. The scale matches your real numbers.
 
@@ -48,7 +48,7 @@ The first run does the real research. After that it stays cheap, because it only
 
 **Click any row for the story.** Why the call happens, what it changes, what breaks, and the files behind it. Your agent fills this in while it reads the code.
 
-<img src="docs/img/feat-detail.png" width="800" alt="Click-a-row detail card with why, what changes, on-fail, and source files">
+<img src="docs/img/feat-detail.png" width="600" alt="Click-a-row detail card with why, what changes, on-fail, and source files">
 
 **Export to PNG.** One click in the toolbar saves the whole diagram, swimlane header and all, as a crisp PNG you can drop in a doc or a PR.
 
