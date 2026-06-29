@@ -4,13 +4,16 @@ export const meta = {
   phases: [{ title: 'Draw' }],
 }
 
-// TEMPLATE — the main loop should COPY this into an inline Workflow `script` and replace the
-// `repo`/`masterPath`/`skillDir`/`flows` consts below with literals for the run.
+// TEMPLATE — replace the four `repo`/`masterPath`/`skillDir`/`flows` consts below with literals
+// for the run, WRITE the filled-in script to a file, and launch it with `Workflow({scriptPath})`.
 //   flows: [{id, title, subtitle, source_paths}, ...]
 // Returns { scenarios: [<v3 scenario object>, ...] } — the main loop merges + renders.
 // (Workflow scripts have no filesystem access, so merge/validate/render happen in the main loop.)
-// ⚠️ Do NOT rely on the Workflow `args` field with `scriptPath` — observed: args does not reach
-//    the script that way (runs with 0 flows). Embed the values inline instead.
+// ⚠️ Bake the values into the consts below — do NOT pass them via the Workflow `args` field
+//    (observed: args does not reach the script, so it runs with 0 flows).
+// ⚠️ Prefer `scriptPath` (a file) over passing the whole script inline: inline embedding can
+//    mangle the prompt strings. This template therefore uses plain string concatenation (no
+//    `${…}` template literals) so it parses cleanly either way — keep it that way.
 
 // >>> the main loop replaces these four literals for each run:
 const repo = '/ABS/PATH/TO/REPO'
@@ -55,35 +58,35 @@ if (!flows.length) {
   return { scenarios: [] }
 }
 
-log(`drawing ${flows.length} scenario(s), one agent each`)
+log('drawing ' + flows.length + ' scenario(s), one agent each')
 
+// NOTE: plain string concatenation only (no `${…}` template literals) so this parses cleanly
+// whether run from a file or embedded inline.
 const drawn = await parallel(
-  flows.map((f) => () =>
-    agent(
-      [
-        'Draw EXACTLY ONE blueprint scenario as a v3 JSON object.',
-        '',
-        `Flow id: ${f.id}`,
-        `Title: ${f.title}`,
-        f.subtitle ? `What it is: ${f.subtitle}` : '',
-        `Repo: ${repo}`,
-        `Trace it by reading ONLY these paths (plus what they reference): ${(f.source_paths || []).join(', ') || '(locate from the repo)'}`,
-        '',
-        `1. Read the rules + schema in ${skillDir}/scenario-prompt.md and the "Spec schema (v3)" section of ${skillDir}/SKILL.md.`,
-        masterPath
-          ? `2. Read the existing master at ${masterPath} and REUSE its actor ids + zones wherever the same real component appears, so the set stays visually consistent.`
-          : '2. (No existing master — choose clear actor ids/zones.)',
-        '3. Read the real code for this flow — never invent behaviour.',
-        '',
-        'Return ONE scenario object (id, title, subtitle, meta, source_paths, actors, messages, fragments). Output only the object.',
-      ]
-        .filter(Boolean)
-        .join('\n'),
-      { label: `draw:${f.id}`, phase: 'Draw', schema: SCENARIO_SCHEMA },
-    ),
-  ),
+  flows.map((f) => () => {
+    const paths = (f.source_paths || []).join(', ') || '(locate from the repo)'
+    const masterStep = masterPath
+      ? '2. Read the existing master at ' + masterPath + ' and REUSE its actor ids + zones wherever the same real component appears, so the set stays visually consistent.'
+      : '2. (No existing master — choose clear actor ids/zones.)'
+    const prompt = [
+      'Draw EXACTLY ONE blueprint scenario as a v3 JSON object.',
+      '',
+      'Flow id: ' + f.id,
+      'Title: ' + f.title,
+      f.subtitle ? 'What it is: ' + f.subtitle : '',
+      'Repo: ' + repo,
+      'Trace it by reading ONLY these paths (plus what they reference): ' + paths,
+      '',
+      '1. Read the rules + schema in ' + skillDir + '/scenario-prompt.md and the "Spec schema (v3)" section of ' + skillDir + '/SKILL.md.',
+      masterStep,
+      '3. Read the real code for this flow — never invent behaviour.',
+      '',
+      'Return ONE scenario object (id, title, subtitle, meta, source_paths, actors, messages, fragments). Output only the object.',
+    ].filter(Boolean).join('\n')
+    return agent(prompt, { label: 'draw:' + f.id, phase: 'Draw', schema: SCENARIO_SCHEMA })
+  }),
 )
 
 const scenarios = drawn.filter(Boolean)
-log(`drew ${scenarios.length}/${flows.length}`)
+log('drew ' + scenarios.length + '/' + flows.length)
 return { scenarios }

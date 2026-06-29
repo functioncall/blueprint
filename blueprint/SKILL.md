@@ -50,13 +50,15 @@ every time, and adding scenarios later never touches the ones already drawn.
    multi-select** with a **"draw all"** option; draw only the ticked ones. **Override:** if the
    user's request already said "one shot" / "draw all" / "everything", skip the picker and take
    the whole list.
-4. **Fan out — the dynamic workflow:** use `scripts/draw_workflow.js` as the template and
-   launch it via the **Workflow tool**, **embedding the chosen flows (+ `repo`/`masterPath`/
-   `skillDir`) as literals in the inline `script`**. It spawns ONE agent per flow (each reads
-   only that flow's `source_paths` + reuses the master's actor vocabulary) and returns
-   `{scenarios:[…]}` — one v3 scenario object each.
-   ⚠️ Pass the flows **inline**, NOT via the Workflow `args` field with `scriptPath` — observed:
-   `args` does not reach the script that way (it ran with 0 flows). Inline `script` is reliable.
+4. **Fan out — the dynamic workflow:** use `scripts/draw_workflow.js` as the template — bake the
+   chosen flows (+ `repo`/`masterPath`/`skillDir`) into it as **literals**, then **write the
+   filled-in script to a file and launch it with `Workflow({scriptPath})`**. It spawns ONE agent
+   per flow (each reads only that flow's `source_paths` + reuses the master's actor vocabulary)
+   and returns `{scenarios:[…]}` — one v3 scenario object each.
+   ⚠️ Bake the flows in as literals in the **script body** — do NOT pass them via the Workflow
+   `args` field (observed: `args` does not reach the script, so it runs with 0 flows). And prefer
+   a **`scriptPath` file** over passing the whole `script` inline — inline embedding can mangle
+   the prompt strings and trip the parser.
    (Tiny repo / no workflow wanted? `discovery-prompt.md` still does list+draw in one agent.)
 5. **Merge:** add/replace those scenarios in the master **by `id`**; leave every other scenario
    byte-for-byte. (Workflow scripts have no filesystem — the main loop writes the file.)
