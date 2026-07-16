@@ -9,8 +9,6 @@
 ![python](https://img.shields.io/badge/python_3-zero_deps-555?style=flat-square)
 ![output](https://img.shields.io/badge/output-self--contained_HTML-555?style=flat-square)
 
-<img src="docs/img/hero.png" width="820" alt="A sign-in flow with the Google path lit up">
-
 <img src="docs/video/blueprint-web.webp" width="100%" alt="Switching scenarios and lighting up a path in a rendered blueprint">
 
 </div>
