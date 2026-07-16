@@ -11,6 +11,8 @@
 
 <img src="docs/img/hero.png" width="820" alt="A sign-in flow with the Google path lit up">
 
+<img src="docs/video/blueprint-web.webp" width="100%" alt="Switching scenarios and lighting up a path in a rendered blueprint">
+
 </div>
 
 Describe a flow to your coding agent. It reads your code and renders an interactive sequence diagram. The layout and colours are fixed, so every diagram comes out consistent and you never touch styling.
