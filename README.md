@@ -56,9 +56,69 @@ Prefer to write the spec yourself? The format is in [`SKILL.md`](blueprint/SKILL
 - **One file, every flow.** A whole product in one place. Switch scenarios from a dropdown — same lanes and colours every time.
 - **Colour lenses.** Light up one path from start to finish, or shade the arrows by cost or latency against your real numbers.
 - **Click any row for the detail.** Why the call happens, what it changes, what breaks, and the files behind it — filled in by your agent as it reads the code.
+- **Run it again and it only redraws what changed.** The file remembers the git SHA it was built from. The next run diffs that against `HEAD` and re-reads only the flows whose files actually moved. The rest are left byte for byte. Twelve flows, one changed route, one flow redrawn.
 - **Export to PNG.** One click saves the whole diagram, swimlane header and all, as a crisp image for a doc or a PR.
 
 Plus UML arrows, markers for network calls and data stores, phase bands, `opt` / `alt` / `loop` boxes, and a sticky header.
+
+## Under the hood
+
+Two ways in: hand-author one flow, or point it at a repo and let it map the lot.
+
+```
+blueprint
+│
+├─ ONE FLOW ─ you author it
+│    └─ copy an example ──► edit JSON ──► render ──► index.html
+│
+└─ WHOLE REPO ─ project mode, cached and self-freshening
+     │
+     ├─ LOCATE
+     │    └─ agent_docs/diagrams/architecture.json        (else docs/diagrams/)
+     │
+     ├─ SCOUT ─ what actually needs drawing?
+     │    ├─ no master ────► enumerate every flow         (first build)
+     │    │
+     │    ├─ master ──┬──► freshness ──► git_sha vs HEAD
+     │    │           │       └─ moved ──► stale flows    (source_paths touched)
+     │    │           └──► enumerate ───► new flows
+     │    │                     │
+     │    │                     ▼
+     │    │                candidates
+     │    │
+     │    └─ fresh, nothing new? ──────► skip to SEAL     (re-render only)
+     │
+     ├─ GATE ──► YOU tick the flows                       (or "draw all")
+     │
+     ├─ DRAW ─ one agent per flow
+     │    ├─ flow A ─┐
+     │    ├─ flow B ─┤   each reads only its source_paths
+     │    └─ flow C ─┘   each reuses the master's actors
+     │         │
+     │         ▼
+     │    scenarios[]
+     │
+     ├─ MERGE ──► add / replace by id                     (rest byte-for-byte)
+     │
+     ├─ SEAL
+     │    ├─ validate ──────► must pass
+     │    ├─ stamp ─────────► git_sha = HEAD              (baseline for next run)
+     │    └─ render ────────► index.html
+     │
+     └─ SHIP ──► open / screenshot ──► commit JSON + HTML
+          │
+          └┄┄ next run ┄┄► SCOUT                          (redraw only what moved)
+```
+
+The gate is the only place you have to show up. The dashed line at the bottom is what makes the second run cheap.
+
+## The JSON is half the value
+
+You asked for a diagram. You also get the file it renders from, `agent_docs/diagrams/architecture.json`.
+
+Every flow in it names the paths it lives in and the file behind each call. So the file doubles as a map of your codebase, written by an agent that had just read it properly.
+
+Hand it to the next agent before it starts a task. It skips the scouting, opens the right files first time, and gets on with the work. Same for a new hire, or for you after six months away.
 
 ## License
 
